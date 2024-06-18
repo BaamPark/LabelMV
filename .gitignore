@@ -2,6 +2,8 @@ saved IDs/
 *.txt
 samples/
 old_files/
+samples_vid/
+prac.ipynb
 annotations*
 __pycache__/
 *.log

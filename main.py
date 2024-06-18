@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSlider
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QBrush, QColor, QPolygon
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit
@@ -12,7 +12,10 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut
+import adjust_video
+from yolo import run_yolo
 from logger_config import logger
+
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None): #conflict
@@ -20,14 +23,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Image Annotation Tool")
         self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'ns':7, 'invalid':8}
         self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'ns', 8:'invalid'}
-        self.img_size_width_height = None
-        self.image_dir = None
-        self.image_annotations = {}
-        self.image_files = []
-        self.current_image_index = -1
-        self.resizing = False
-        self.image_label = QLabel(self)
-        self.image_data = None # this should hold the current image data
+        self.video_annotations = {0:{}, 1:{}, 2:{}} #! to be remained
+        #{view0: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, view1: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, ...}
+
+        self.current_view = 0 #! to be remained
+        self.current_frame_index = 0 #! to be remained
 
         self.bbox_list_widget = QListWidget() #! list widget
         self.bbox_list_widget.itemDoubleClicked.connect(self.handle_item_double_clicked)
@@ -37,39 +37,52 @@ class MainWindow(QMainWindow):
         self.text_widget.setFixedWidth(200)  # Set a fixed height
         self.text_widget.setFixedHeight(25)
 
-        self.id_widget = QTextEdit()  # New text widget
-        self.id_widget.setFixedWidth(200)  # Set a fixed height
-        self.id_widget.setFixedHeight(25)
+        self.objwidget = QTextEdit()  # New text widget
+        self.objwidget.setFixedWidth(200)  # Set a fixed height
+        self.objwidget.setFixedHeight(25)
 
         self.image_list_widget = QListWidget()  # The new QListWidget
-        self.image_list_widget.itemDoubleClicked.connect(self.load_image_from_list)  # Connect the itemClicked signal to the load_image_from_list method
+        self.image_list_widget.itemDoubleClicked.connect(self.load_image_from_list) #! to be removed
         self.image_list_widget.setFixedWidth(200)
 
         font = QFont()
         font.setPointSize(13) 
-        self.file_label = QLabel()
-        self.file_label.setText("Current file: None")  # Initial text
-        self.file_label.setFixedHeight(20)
-        self.file_label.setFont(font)
-        self.file_label.setAlignment(Qt.AlignBottom)
+        self.frame_indicator = QLabel()
+        self.frame_indicator.setText("Current frame: None")  # Initial text
+        self.frame_indicator.setFixedHeight(20)
+        self.frame_indicator.setFont(font)
+        self.frame_indicator.setAlignment(Qt.AlignBottom)
         
         self.resize(1400, 1000)
 
         self.btn_browse = QPushButton("Browse")
-        self.btn_browse.clicked.connect(self.browse_folder)
+        self.btn_browse.clicked.connect(self.browse_video)
+        # self.btn_browse.clicked.connect(self.browse_folder)
         self.btn_browse.setFixedWidth(100)
 
         self.btn_next = QPushButton("Next")
-        self.btn_next.clicked.connect(self.next_image)
+        self.btn_next.clicked.connect(self.next_frame)
         self.btn_next.setFixedWidth(100)
         next_shorcut = QShortcut(QKeySequence('d'), self)
-        next_shorcut.activated.connect(self.next_image)
+        next_shorcut.activated.connect(self.next_frame)
 
         self.btn_prev = QPushButton("Previous")
-        self.btn_prev.clicked.connect(self.previous_image)
+        self.btn_prev.clicked.connect(self.previous_frame)
         self.btn_prev.setFixedWidth(100)
         prev_shorcut = QShortcut(QKeySequence('a'), self)
-        prev_shorcut.activated.connect(self.previous_image)
+        prev_shorcut.activated.connect(self.previous_frame)
+
+        self.btn_main_view = QPushButton("Main View")
+        self.btn_main_view.clicked.connect(self.show_main_view)
+        self.btn_main_view.setFixedWidth(100)
+
+        self.btn_second_view = QPushButton("Second View")
+        self.btn_second_view.clicked.connect(self.show_second_view)
+        self.btn_second_view.setFixedWidth(100)
+
+        self.btn_third_view = QPushButton("Third View")
+        self.btn_third_view.clicked.connect(self.show_third_view)
+        self.btn_third_view.setFixedWidth(100)
 
         self.btn_load_prev_labels = QPushButton("Load prebox")
         self.btn_load_prev_labels.clicked.connect(self.load_prev_labels)  # Connect to the function that runs the YOLO detector
@@ -106,6 +119,8 @@ class MainWindow(QMainWindow):
         remove_label_shortcut = QShortcut(QKeySequence('r'), self)
         remove_label_shortcut.activated.connect(self.remove_label)
 
+
+        # layout left side
         self.btn_edit_text = QPushButton("Edit Text")  # Create the button
         self.btn_edit_text.clicked.connect(self.edit_text)  # Connect it to the function that will handle the button click
         self.btn_edit_text.setFixedWidth(100)  # Set the button width
@@ -132,11 +147,22 @@ class MainWindow(QMainWindow):
         self.btn_enter_id.clicked.connect(self.enter_id)
         self.btn_enter_id.setFixedWidth(100)
 
+        # Create a horizontal scrollbar (QSlider)
+        self.h_slider = QSlider(Qt.Horizontal)
+        self.h_slider.setMinimum(0)
+        self.h_slider.setValue(0)
+        self.h_slider.setTickPosition(QSlider.TicksBelow)
+        self.h_slider.setTickInterval(1)
+        self.h_slider.valueChanged.connect(self.update_scroll)
+
         # Create a QVBoxLayout instance for buttons
         button_layout = QVBoxLayout()
         button_layout.addWidget(self.btn_browse)
         button_layout.addWidget(self.btn_next)
         button_layout.addWidget(self.btn_prev)
+        button_layout.addWidget(self.btn_main_view)
+        button_layout.addWidget(self.btn_second_view)
+        button_layout.addWidget(self.btn_third_view)
         button_layout.addWidget(self.btn_load_prev_labels)
         button_layout.addWidget(self.btn_run_detector)
         button_layout.addWidget(self.btn_add_label)
@@ -146,13 +172,14 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.btn_import_label)
         
         # Create a QHBoxLayout for the file label to center it
-        file_label_layout = QHBoxLayout()
-        file_label_layout.addStretch()
-        file_label_layout.addWidget(self.file_label)
-        file_label_layout.addStretch()
+        frame_indicator_layout = QHBoxLayout()
+        frame_indicator_layout.addStretch()
+        frame_indicator_layout.addWidget(self.frame_indicator)
+        frame_indicator_layout.addStretch()
         
         file_image_layout = QVBoxLayout()
-        file_image_layout.addLayout(file_label_layout)  # Use the new layout
+        file_image_layout.addWidget(self.h_slider)  # Move the slider here
+        file_image_layout.addLayout(frame_indicator_layout)  # Use the new layout
         file_image_layout.addWidget(self.image_label)
         file_image_layout.setSpacing(0)
 
@@ -163,7 +190,7 @@ class MainWindow(QMainWindow):
         text_list_layout.addWidget(self.bbox_list_widget)
         text_list_layout.addWidget(self.image_list_widget)
         
-        text_list_layout.addWidget(self.id_widget)
+        text_list_layout.addWidget(self.objwidget)
         text_list_layout.addWidget(self.btn_enter_id)
         text_list_layout.addWidget(self.btn_next_id)
         text_list_layout.addWidget(self.btn_prev_id)
@@ -178,6 +205,11 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         main_widget.setLayout(layout)
         self.setCentralWidget(main_widget)
+
+
+    def update_scroll(self, value):
+        self.current_frame_index = value
+        self.load_video_frame()
 
 
     def keyPressEvent(self, event):
@@ -215,9 +247,9 @@ class MainWindow(QMainWindow):
 
 
     def export_labels(self, btn=False):
-        image_file = self.image_files[self.current_image_index]
-        source = os.path.join(self.image_dir, image_file)
-        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
+        sequence = self.video_frame_sequences[self.current_frame_index]
+        pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
         
         if btn:
             options = QFileDialog.Options()
@@ -231,59 +263,59 @@ class MainWindow(QMainWindow):
             filename = 'annotations.txt'
 
         with open(filename, 'w') as f:
-            for file, annotations in self.image_annotations.items():
-                for annotation in annotations:
-                    splited_string = [s.strip() for s in annotation.replace('(', '').replace(')', '').split(',')]
-                    if len(splited_string) < 5: #when id is not included
-                    # Show a message box
-                        msg = QMessageBox()
-                        msg.setIcon(QMessageBox.Warning)
-                        msg.setText("ID missing!")
-                        msg.setInformativeText(f"The ID is missing for the file {file}.")
-                        msg.setWindowTitle("Export Warning")
-                        msg.exec_()
-                        continue
-                    bbox, id_ = annotation.rsplit(', ', 1)
-                    x, y, w, h = map(int, bbox.strip('()').split(','))
-                    yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
+            for view in self.video_annotations:
+                for frame_num, annotations in self.video_annotations[view].items():
+                    for annotation in annotations:
+                        splited_string = [s.strip() for s in annotation.replace('(', '').replace(')', '').split(',')]
+                        if len(splited_string) < 5: #when id is not included
+                        # Show a message box
+                            msg = QMessageBox()
+                            msg.setIcon(QMessageBox.Warning)
+                            msg.setText("Object missing!")
+                            msg.setInformativeText(f"The Object is missing at view{view}, frame {frame_num}.")
+                            msg.setWindowTitle("Export Warning")
+                            msg.exec_()
+                            continue
+                        bbox, obj = annotation.rsplit(', ', 1)
+                        x, y, w, h = map(int, bbox.strip('()').split(','))
+                        yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
 
-                    if id_ not in self.cls_dict:
-                        id_ = 'invalid'
-                    f.write(f"{file}, {self.cls_dict[id_.strip()]} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
+                        if obj not in self.cls_dict:
+                            obj = 'invalid'
+                        f.write(f"{view}, {frame_num}, {self.cls_dict[obj.strip()]} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
     
     
-
     def enter_id(self):
-        self.id = self.id_widget.toPlainText()
-        id_folder = f"saved IDs/ID{self.id}"
-        if os.path.isdir(id_folder):
-            #! self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".png")], key=sort_key)
-            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".png")])
-            if self.id_image_files:  # if there are images in the directory
-                self.id_current_image_index = 0
-                self.load_saved_image(os.path.join(id_folder, self.id_image_files[self.id_current_image_index]))
-                
+        self.id = self.objwidget.toPlainText()
+        objfolder = f"saved IDs/ID{self.id}"
+        if os.path.isdir(objfolder):
+            #! self.objimage_files = sorted([f for f in os.listdir(objfolder) if f.endswith(".png")], key=sort_key)
+            self.objimage_files = sorted([f for f in os.listdir(objfolder) if f.endswith(".png")])
+            if self.objimage_files:  # if there are images in the directory
+                self.objcurrent_image_index = 0
+                self.load_saved_image(os.path.join(objfolder, self.objimage_files[self.objcurrent_image_index]))
+
 
     def next_id(self):
-        if self.id_image_files and self.id_current_image_index < len(self.id_image_files) - 1:
+        if self.objimage_files and self.objcurrent_image_index < len(self.objimage_files) - 1:
             # increment the index
-            self.id_current_image_index += 1
+            self.objcurrent_image_index += 1
             # load the image
-            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
-        if self.id_current_image_index >= len(self.id_image_files) - 1:
-            self.id_current_image_index = len(self.id_image_files) - 1
-            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
-        
+            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.objimage_files[self.objcurrent_image_index]))
+        if self.objcurrent_image_index >= len(self.objimage_files) - 1:
+            self.objcurrent_image_index = len(self.objimage_files) - 1
+            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.objimage_files[self.objcurrent_image_index]))
+
 
     def previous_id(self):
-        if self.id_image_files and self.id_current_image_index > 0:
+        if self.objimage_files and self.objcurrent_image_index > 0:
             # increment the index
-            self.id_current_image_index -= 1
+            self.objcurrent_image_index -= 1
             
-            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
-        if self.id_current_image_index <= 0:
-            self.id_current_image_index = 0
-            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
+            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.objimage_files[self.objcurrent_image_index]))
+        if self.objcurrent_image_index <= 0:
+            self.objcurrent_image_index = 0
+            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.objimage_files[self.objcurrent_image_index]))
 
 
     def load_saved_image(self, img_path):
@@ -296,37 +328,99 @@ class MainWindow(QMainWindow):
         self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         image_file = item.text()
         self.current_image_index = self.image_files.index(image_file)
-        self.load_image()
+        logger.info(f"image_file: {image_file} (load_image_from_list)")
+        self.load_video_frame()
 
 
-    def browse_folder(self):
-        self.image_dir = QFileDialog.getExistingDirectory(self, 'Open directory', '/home')
-        if self.image_dir:
-            self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.png', '.jpg', '.jpeg'))], key=sort_key)
-            self.current_image_index = -1
-            self.next_image()
-            self.image_list_widget.clear()
+    def load_video_frame(self, view=0):
+        self.image_label.clicked_rect_index = []
+        sequence = self.video_frame_sequences[self.current_frame_index]
+        if view == 0:
+            self.current_view = 0
+            pixmap = adjust_video.get_video_frame(self.video_path_view0, sequence)
+        elif view == 1:
+            self.current_view = 1
+            pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+        elif view == 2:
+            self.current_view = 2
+            pixmap = adjust_video.get_video_frame(self.video_path_view2, sequence)
+        scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
+        self.image_label.setPixmap(scaled_pixmap)
+        self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}")
+        self.image_label.rectangles.clear()
+        
+        # if annotation was made at this frame and at this view
+        logger.info(f"annotation: {self.video_annotations} (load_video_frame)")
+        logger.info(f"sequence: {sequence} (load_video_frame)")
+        if sequence in self.video_annotations[self.current_view]:
+            self.bbox_list_widget.clear()
+            for bbox in self.video_annotations[self.current_view][sequence]:
+                self.bbox_list_widget.addItem(bbox)
+                splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
+                if len(splited_string) == 4:
+                    x, y, w, h = map(int, splited_string)
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'focus': False}
+                else:
+                    x, y, w, h = map(int, splited_string[:-1])
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-1], 'focus': False}
+                self.image_label.rectangles.append(rect)
 
-            for image_file in self.image_files:
-                self.image_list_widget.addItem(image_file)
+        else:
+            self.bbox_list_widget.clear()
 
 
-    def next_image(self):
-        if self.image_files:
-            self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-            
-        if self.image_files and self.current_image_index < len(self.image_files) - 1:
-            self.current_image_index += 1
-            self.load_image()
+    def browse_video(self):
+        self.video_path_view0 = QFileDialog.getOpenFileName(self, 'Open Main-view Video', '/home')[0]
+        self.video_path_view1 = QFileDialog.getOpenFileName(self, 'Open Second-view Video', '/home')[0]
+        self.video_path_view2 = QFileDialog.getOpenFileName(self, 'Open Third-view Video', '/home')[0]
+        
+        self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_view0)
+
+        video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, 10)
+        video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, 10)
+        video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, 10)
+        if len(video_frame_sequences_view0) != len(video_frame_sequences_view1) or len(video_frame_sequences_view0) != len(video_frame_sequences_view2):
+            logger.info(f'Video frame sequences have different lengths: view0:{len(video_frame_sequences_view0)}, view1:{len(video_frame_sequences_view1)}, view2:{len(video_frame_sequences_view2)}')
+
+        self.video_frame_sequences = min([video_frame_sequences_view0, video_frame_sequences_view1, video_frame_sequences_view2], key=len)
+
+        self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
+        self.current_frame_index = 0
+        self.load_video_frame()
+
+
+    def next_frame(self):
+        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+        logger.info(f"annotations: {self.video_annotations} (next_frame)")
+        if self.current_frame_index < len(self.video_frame_sequences) - 1:
+            self.current_frame_index += 1
+            self.load_video_frame()
             self.export_labels()
 
 
-    def previous_image(self):
-        if self.image_files:
-            self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        if self.image_files and self.current_image_index > 0:
-            self.current_image_index -= 1
-            self.load_image()
+    def previous_frame(self):
+        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+        logger.info(f"annotations: {self.video_annotations} (previous_frame)")
+        if self.current_frame_index >= 0:
+            self.current_frame_index -= 1
+            self.load_video_frame()
+            # self.export_labels()
+
+
+    def show_main_view(self):
+        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+        self.load_video_frame(view=0)
+        self.export_labels()
+
+    def show_second_view(self):
+        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+        self.load_video_frame(view=1)
+        self.export_labels()
+
+    def show_third_view(self):
+        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+        self.load_video_frame(view=2)
+        self.export_labels()
 
     def clear_labels(self):
         self.bbox_list_widget.clear()
@@ -335,18 +429,18 @@ class MainWindow(QMainWindow):
 
 
     def load_prev_labels(self):
-        image_file = self.image_files[self.current_image_index - 1]
-        if image_file in self.image_annotations:
+        prev_sequence = self.video_frame_sequences[self.current_frame_index -1]
+        if prev_sequence in self.video_annotations[self.current_view]:
             # self.bbox_list_widget.clear()
-            for bbox in self.image_annotations[image_file]:
+            for bbox in self.video_annotations[self.current_view][prev_sequence]:
                 self.bbox_list_widget.addItem(bbox)
                 splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
                 if len(splited_string) == 4:
                     x, y, w, h = map(int, splited_string)
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': None, 'focus': False}
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'focus': False}
                 else:
                     x, y, w, h = map(int, splited_string[:-1])
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': splited_string[-1], 'focus': False}
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-1], 'focus': False}
                 self.image_label.rectangles.append(rect)
             self.image_label.update()
 
@@ -359,63 +453,30 @@ class MainWindow(QMainWindow):
         file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
         if file_name:
             with open(file_name, 'r') as f:
-                self.image_annotations.clear()
+                self.video_annotations.clear()
+                self.video_annotations = {0: {}, 1: {}, 2: {}}
                 for line in f:
-                    file, lbl = line.split(', ')
-                    id_, x, y, w, h = lbl.split(' ')
+                    view, frame, lbl = line.split(', ')
+                    obj, x, y, w, h = lbl.split(' ')
                     
-                    id_ = int(id_)
-                    if id_ not in self.reverse_cls_dict:
-                        id_ = 8
-                    id_ = self.reverse_cls_dict[int(id_)]
-                    image_file = self.image_files[self.current_image_index]
-                    source = os.path.join(self.image_dir, image_file)
-
-                    scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
+                    view, obj, frame = int(view), int(obj), int(frame)
+                    if obj not in self.reverse_cls_dict:
+                        obj = len(self.reverse_cls_dict) - 1
+                    obj = self.reverse_cls_dict[int(obj)]
+                    sequence = self.video_frame_sequences[self.current_frame_index]
+                    pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+                    scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
                     left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
 
-                    if file not in self.image_annotations:
-                        self.image_annotations[file] = [f"({left}, {top}, {width}, {height}), {id_}"]
+                    if frame not in self.video_annotations[view]:
+                        self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}"]
                     else:
-                        self.image_annotations[file].append(f"({left}, {top}, {width}, {height}), {id_}")
-            self.load_image()
-
-
-    def load_image(self):
-        import cv2
-        self.image_label.clicked_rect_index = []
-        if self.image_files:
-            image_file = self.image_files[self.current_image_index]
-            logger.info(f'image loaded: {image_file}')
-            if image_file is not None:
-                assert os.path.exists(os.path.join(self.image_dir, image_file)), f"Image file {image_file} does not exist"
-                img = cv2.imread(os.path.join(self.image_dir, image_file))
-                org_size_h, org_size_w, _ = img.shape
-                self.img_size_width_height = (org_size_w, org_size_h)
-            self.file_label.setText(f"Current file: {image_file}")
-            pixmap = QPixmap(os.path.join(self.image_dir, image_file))
-            scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
-            self.image_label.setPixmap(scaled_pixmap)
-            self.image_label.rectangles.clear() # Clear the rectangles list when a new image is loaded
-            if image_file in self.image_annotations:
-                self.bbox_list_widget.clear()
-                for bbox in self.image_annotations[image_file]:
-                    self.bbox_list_widget.addItem(bbox)
-                    splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
-                    if len(splited_string) == 4:
-                        x, y, w, h = map(int, splited_string)
-                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': None, 'focus': False}
-                    else:
-                        x, y, w, h = map(int, splited_string[:-1])
-                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': splited_string[-1], 'focus': False}
-                    self.image_label.rectangles.append(rect)
-
-            else:
-                self.bbox_list_widget.clear()
+                        self.video_annotations[view][frame].append(f"({left}, {top}, {width}, {height}), {obj}")
+            
+            self.load_video_frame()
 
 
     def run_detector(self):
-        from yolo import run_yolo
 
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
@@ -438,7 +499,7 @@ class MainWindow(QMainWindow):
                 bbox_str = str((left, top, width, height))
                 bbox_str += ", " + str(box_cls)
                 existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-                rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'id': box_cls, 'focus': False}
+                rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls, 'focus': False}
                 self.image_label.rectangles.append(rect)
 
                 if bbox_str in existing_items:
@@ -482,12 +543,12 @@ class MainWindow(QMainWindow):
                 
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'id':id, 'focus':False}
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':id, 'focus':False}
 
             else:
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'id':None, 'focus':False}
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':None, 'focus':False}
 
             self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
             
@@ -505,10 +566,7 @@ class MainWindow(QMainWindow):
 
 
     def edit_text(self):
-        image_file = self.image_files[self.current_image_index]
-        source = os.path.join(self.image_dir, image_file)
         new_text = self.text_widget.toPlainText()
-        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
         current_item = self.bbox_list_widget.currentItem()
 
         # If an item is selected, update its text
@@ -526,34 +584,18 @@ class MainWindow(QMainWindow):
             vertices = xyhw_to_xyxy(vertices)
             right, bottom = vertices[2], vertices[3]
 
-            # capture_bbox(vertices, source, scale_x, scale_y, vertical_offset, new_text, self.current_image_index, self.image_dir)
-
             # Update the rectangles list with the bounding box ID
             # it has use for loop because whenever you update iamge_label, the paintEvent work same jobs again.
             for i, rect in enumerate(self.image_label.rectangles):
                 if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
 
                     logger.info('trying to label bbox class: {}'.format(new_text))
-                    self.image_label.rectangles[i]['id'] = new_text
+                    self.image_label.rectangles[i]['obj'] = new_text
                     break
 
         # Force a repaint
         self.image_label.update()
 
-
-    def calculate_scale_and_offset(self, source):
-        # Load the image into a QPixmap
-        pixmap = QPixmap(source)
-        image_width = pixmap.width()
-        image_height = pixmap.height()
-
-        # Scale the QPixmap to fit the QLabel
-        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-        scale_x = pixmap.width() / image_width
-        scale_y = pixmap.height() / image_height
-
-        vertical_offset = (self.image_label.height() - pixmap.height()) / 2
-        return scale_x, scale_y, vertical_offset
 
     #convert_yolo_format function has 
     def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
@@ -589,9 +631,8 @@ class MainWindow(QMainWindow):
             return int(pix_left), int(pix_top), int(pix_width), int(pix_height)
         
 
-    def calculate_scale_and_offset(self, source):
+    def calculate_scale_and_offset(self, pixmap):
         # Load the image into a QPixmap
-        pixmap = QPixmap(source)
         image_width = pixmap.width()
         image_height = pixmap.height()
 
