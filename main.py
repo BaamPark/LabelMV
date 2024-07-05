@@ -394,7 +394,7 @@ class MainWindow(QMainWindow):
         logger.info(f"annotations: {self.video_annotations} (next_frame)")
         if self.current_frame_index < len(self.video_frame_sequences) - 1:
             self.current_frame_index += 1
-            self.load_video_frame()
+            self.load_video_frame(view=self.current_view)
             self.export_labels()
 
 
@@ -403,7 +403,7 @@ class MainWindow(QMainWindow):
         logger.info(f"annotations: {self.video_annotations} (previous_frame)")
         if self.current_frame_index >= 0:
             self.current_frame_index -= 1
-            self.load_video_frame()
+            self.load_video_frame(view=self.current_view)
             # self.export_labels()
 
 
