@@ -104,21 +104,21 @@ class ClickableImageLabel(QLabel):
     def mouseReleaseEvent(self, event):
         if self.drawing:
             self.drawing = False
-            rect = {"min_xy":self.start_pos, "max_xy":self.end_pos, 'obj': None, 'focus':False}
+            rect = {"min_xy":self.start_pos, "max_xy":self.end_pos, 'obj': None, 'id': None, 'focus':False}
             rect = self.check_negative_box(rect)
             self.rectangles.append(rect)  # Store the rectangle's coordinates
             self.update()
             self.parent.bbox_list_widget.addItem(str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())))  # Update the list widget
         
         elif self.selected_rectangle_index is not None:
-            logger.info(f"release the box: selected box index: {self.selected_rectangle_index} from current box list: {self.rectangles}")
             rect = self.rectangles[self.selected_rectangle_index]
+            logger.info(f"rect: {rect} at mouse release event")
             self.update()
             rect['focus'] = False
-            if rect['obj'] is None:
+            if rect['obj'] is None and rect['id'] is None:
                 new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y()))
-            elif rect['obj'] is not None:
-                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", {rect['obj']}"
+            elif rect['obj'] is not None and rect['id'] is not None:
+                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", {rect['obj']}, {rect['id']}"
             self.parent.bbox_list_widget.item(self.selected_rectangle_index).setText(new_item_text)
 
     def check_negative_box(self, rect):
@@ -171,11 +171,10 @@ class ClickableImageLabel(QLabel):
             painter.setPen(pen)
             painter.setBrush(Qt.NoBrush)
             if rect['obj'] is not None:  # Check if this rectangle has an ID
-                bbox_id = rect['obj']
                 # Calculate center x coordinate of the bounding box
                 center_x = top_left.x() + ((bottom_right.x() - top_left.x()) / 2)
                 # Draw the text at the top center of the bounding box
-                painter.drawText(int(center_x - 5), int(top_left.y() - 5), str(bbox_id))  # The "-5" is for adjusting the position of the text
+                painter.drawText(int(center_x - 5), int(top_left.y() - 5), f"id:{rect['id']}")  # The "-5" is for adjusting the position of the text
             painter.drawRect(QRect(top_left, bottom_right))
             
         painter.end()

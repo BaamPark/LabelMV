@@ -33,9 +33,13 @@ class MainWindow(QMainWindow):
         self.bbox_list_widget.itemDoubleClicked.connect(self.handle_item_double_clicked)
         self.bbox_list_widget.setFixedWidth(200)
 
-        self.text_widget = QTextEdit()  # New text widget
-        self.text_widget.setFixedWidth(200)  # Set a fixed height
-        self.text_widget.setFixedHeight(25)
+        self.text_widget_for_obj = QTextEdit()  # New text widget
+        self.text_widget_for_obj.setFixedWidth(200)  # Set a fixed height
+        self.text_widget_for_obj.setFixedHeight(25)
+
+        self.text_widget_for_id = QTextEdit()  # New text widget
+        self.text_widget_for_id.setFixedWidth(200)  # Set a fixed height
+        self.text_widget_for_id.setFixedHeight(25)
 
         self.objwidget = QTextEdit()  # New text widget
         self.objwidget.setFixedWidth(200)  # Set a fixed height
@@ -121,7 +125,7 @@ class MainWindow(QMainWindow):
 
 
         # layout left side
-        self.btn_edit_text = QPushButton("Edit Text")  # Create the button
+        self.btn_edit_text = QPushButton("Update Box")  # Create the button
         self.btn_edit_text.clicked.connect(self.edit_text)  # Connect it to the function that will handle the button click
         self.btn_edit_text.setFixedWidth(100)  # Set the button width
 
@@ -185,7 +189,8 @@ class MainWindow(QMainWindow):
 
         # Create a QVBoxLayout for text and list widgets
         text_list_layout = QVBoxLayout()
-        text_list_layout.addWidget(self.text_widget)
+        text_list_layout.addWidget(self.text_widget_for_obj)
+        text_list_layout.addWidget(self.text_widget_for_id)
         text_list_layout.addWidget(self.btn_edit_text)
         text_list_layout.addWidget(self.bbox_list_widget)
         text_list_layout.addWidget(self.image_list_widget)
@@ -276,13 +281,14 @@ class MainWindow(QMainWindow):
                             msg.setWindowTitle("Export Warning")
                             msg.exec_()
                             continue
-                        bbox, obj = annotation.rsplit(', ', 1)
+                        logger.info(f"annotations: {annotations} at export_labels")
+                        bbox, obj, id = annotation.rsplit(', ', 2)
                         x, y, w, h = map(int, bbox.strip('()').split(','))
                         yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
 
                         if obj not in self.cls_dict:
                             obj = 'invalid'
-                        f.write(f"{view}, {frame_num}, {self.cls_dict[obj.strip()]} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
+                        f.write(f"{view}, {frame_num}, {id}, {obj} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
     
     
     def enter_id(self):
@@ -357,12 +363,14 @@ class MainWindow(QMainWindow):
             for bbox in self.video_annotations[self.current_view][sequence]:
                 self.bbox_list_widget.addItem(bbox)
                 splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
+                logger.info(f"splited_string: {splited_string} (load_video_frame)")
                 if len(splited_string) == 4:
                     x, y, w, h = map(int, splited_string)
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'focus': False}
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'id': None,'focus': False}
                 else:
-                    x, y, w, h = map(int, splited_string[:-1])
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-1], 'focus': False}
+                    x, y, w, h = map(int, splited_string[:-2])
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-2], 'id': splited_string[-1], 'focus': False}
+                    logger.info(f"rect: {rect} (load_video_frame)")
                 self.image_label.rectangles.append(rect)
 
         else:
@@ -437,10 +445,10 @@ class MainWindow(QMainWindow):
                 splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
                 if len(splited_string) == 4:
                     x, y, w, h = map(int, splited_string)
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'focus': False}
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'id': None,'focus': False}
                 else:
-                    x, y, w, h = map(int, splited_string[:-1])
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-1], 'focus': False}
+                    x, y, w, h = map(int, splited_string[:-2])
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-2], 'id': splited_string[-1], 'focus': False}
                 self.image_label.rectangles.append(rect)
             self.image_label.update()
 
@@ -456,22 +464,19 @@ class MainWindow(QMainWindow):
                 self.video_annotations.clear()
                 self.video_annotations = {0: {}, 1: {}, 2: {}}
                 for line in f:
-                    view, frame, lbl = line.split(', ')
+                    view, frame, id, lbl = line.split(', ')
                     obj, x, y, w, h = lbl.split(' ')
                     
-                    view, obj, frame = int(view), int(obj), int(frame)
-                    if obj not in self.reverse_cls_dict:
-                        obj = len(self.reverse_cls_dict) - 1
-                    obj = self.reverse_cls_dict[int(obj)]
+                    view, frame = int(view), int(frame)
                     sequence = self.video_frame_sequences[self.current_frame_index]
                     pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
                     scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
                     left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
 
                     if frame not in self.video_annotations[view]:
-                        self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}"]
+                        self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}"]
                     else:
-                        self.video_annotations[view][frame].append(f"({left}, {top}, {width}, {height}), {obj}")
+                        self.video_annotations[view][frame].append(f"({left}, {top}, {width}, {height}), {obj}, {id}")
             
             self.load_video_frame()
 
@@ -566,7 +571,8 @@ class MainWindow(QMainWindow):
 
 
     def edit_text(self):
-        new_text = self.text_widget.toPlainText()
+        new_obj = self.text_widget_for_obj.toPlainText()
+        new_id = self.text_widget_for_id.toPlainText()
         current_item = self.bbox_list_widget.currentItem()
 
         # If an item is selected, update its text
@@ -577,7 +583,7 @@ class MainWindow(QMainWindow):
                 splited_string = splited_string[:4]
                 current_text = "({},{},{},{})".format(splited_string[0], splited_string[1], splited_string[2], splited_string[3])
 
-            current_item.setText(current_text + ', ' + new_text)  # append the new text after a comma for separation
+            current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)  # append the new text after a comma for separation
             
             left, top, width, height = map(int, splited_string)
             vertices = [left, top, width, height]
@@ -589,8 +595,10 @@ class MainWindow(QMainWindow):
             for i, rect in enumerate(self.image_label.rectangles):
                 if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
 
-                    logger.info('trying to label bbox class: {}'.format(new_text))
-                    self.image_label.rectangles[i]['obj'] = new_text
+                    logger.info('trying to label bbox class: {}'.format(new_obj))
+                    logger.info('trying to label bbox id: {}'.format(new_id))
+                    self.image_label.rectangles[i]['obj'] = new_obj
+                    self.image_label.rectangles[i]['id'] = new_id
                     break
 
         # Force a repaint
@@ -712,25 +720,6 @@ def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame
     output_path = "saved IDs/ID{}/frame_{}_{}.png".format(id, frame_num, os.path.basename(image_dir))  # replace with your desired output path
 
     cv2.imwrite(output_path, bbox_image)
-
-
-def sort_key(path):
-    # Extract the base name of the file, remove the extension and "frame" prefix, and convert to integer
-    current_path = os.path.basename(path)
-    if '_' in current_path:
-        numbering = current_path.split('_')[-1]
-        _, extension = os.path.splitext(numbering)
-        if extension == '.png':
-            numbering = numbering.replace('.png', '')
-        else:
-            numbering = numbering.replace('.jpg', '')
-        return int(numbering)
-    else:
-        _, extension = os.path.splitext(path)
-        if extension == '.png':
-            return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
-        else:
-            return int(os.path.basename(path).replace('frame', '').replace('.jpg', ''))
 
 
 if __name__ == "__main__":
