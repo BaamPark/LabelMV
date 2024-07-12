@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSlider
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSlider, QInputDialog
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QBrush, QColor, QPolygon
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit
@@ -384,9 +384,9 @@ class MainWindow(QMainWindow):
         
         self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_view0)
 
-        video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, 10)
-        video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, 10)
-        video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, 10)
+        video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, 0.5)
+        video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, 0.5)
+        video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, 0.5)
         if len(video_frame_sequences_view0) != len(video_frame_sequences_view1) or len(video_frame_sequences_view0) != len(video_frame_sequences_view2):
             logger.info(f'Video frame sequences have different lengths: view0:{len(video_frame_sequences_view0)}, view1:{len(video_frame_sequences_view1)}, view2:{len(video_frame_sequences_view2)}')
 
