@@ -382,19 +382,26 @@ class MainWindow(QMainWindow):
         self.video_path_view1 = QFileDialog.getOpenFileName(self, 'Open Second-view Video', '/home')[0]
         self.video_path_view2 = QFileDialog.getOpenFileName(self, 'Open Third-view Video', '/home')[0]
         
-        self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_view0)
+        fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
 
-        video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, 0.5)
-        video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, 0.5)
-        video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, 0.5)
-        if len(video_frame_sequences_view0) != len(video_frame_sequences_view1) or len(video_frame_sequences_view0) != len(video_frame_sequences_view2):
-            logger.info(f'Video frame sequences have different lengths: view0:{len(video_frame_sequences_view0)}, view1:{len(video_frame_sequences_view1)}, view2:{len(video_frame_sequences_view2)}')
+        if ok:
+            self.fps = fps
+            self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_view0)
 
-        self.video_frame_sequences = min([video_frame_sequences_view0, video_frame_sequences_view1, video_frame_sequences_view2], key=len)
+            video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, 0.5)
+            video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, 0.5)
+            video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, 0.5)
 
-        self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
-        self.current_frame_index = 0
-        self.load_video_frame()
+            if len(video_frame_sequences_view0) != len(video_frame_sequences_view1) or len(video_frame_sequences_view0) != len(video_frame_sequences_view2):
+                logger.info(f'Video frame sequences have different lengths: view0:{len(video_frame_sequences_view0)}, view1:{len(video_frame_sequences_view1)}, view2:{len(video_frame_sequences_view2)}')
+
+            self.video_frame_sequences = min([video_frame_sequences_view0, video_frame_sequences_view1, video_frame_sequences_view2], key=len)
+
+            self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
+            self.current_frame_index = 0
+            self.load_video_frame()
+        else:
+            QMessageBox.warning(self, "FPS Not Set", "FPS was not set. Please try again.")
 
 
     def next_frame(self):
