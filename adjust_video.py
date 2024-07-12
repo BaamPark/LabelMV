@@ -6,12 +6,12 @@ def get_frame_indices(video_path, fps):
     video_cap = cv2.VideoCapture(video_path)
     total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
     # Get the Framerate
-    original_fps = video_cap.get(cv2.CAP_PROP_FPS)
+    original_fps = int(video_cap.get(cv2.CAP_PROP_FPS))
     if fps > original_fps:
         fps = original_fps
 
     video_cap.release()
-    frame_indices = [i for i in range(total_frames) if i % fps == 0]
+    frame_indices = [i for i in range(0, total_frames, original_fps // fps)]
     return frame_indices
 
 

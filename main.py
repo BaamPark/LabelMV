@@ -388,9 +388,10 @@ class MainWindow(QMainWindow):
             self.fps = fps
             self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_view0)
 
-            video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, 0.5)
-            video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, 0.5)
-            video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, 0.5)
+            video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, self.fps)
+            video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, self.fps)
+            video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, self.fps)
+            logger.info(f"video_frame_sequences_view0: {video_frame_sequences_view0} (browse_video)")
 
             if len(video_frame_sequences_view0) != len(video_frame_sequences_view1) or len(video_frame_sequences_view0) != len(video_frame_sequences_view2):
                 logger.info(f'Video frame sequences have different lengths: view0:{len(video_frame_sequences_view0)}, view1:{len(video_frame_sequences_view1)}, view2:{len(video_frame_sequences_view2)}')
@@ -540,6 +541,14 @@ class MainWindow(QMainWindow):
         else:
             self.image_label.drawing = False
 
+    @staticmethod
+    def is_convertible_to_int(string):
+        try:
+            int(string)
+            return True
+        except ValueError:
+            return False
+
 
     def remove_label(self):
         #remove highlighted rectangle when loading image
@@ -550,18 +559,31 @@ class MainWindow(QMainWindow):
 
         if item:
             splited_string = [s.strip() for s in item.text().replace('(', '').replace(')', '').split(',')]
-            if len(splited_string) > 4: #when id is included
+            
+            
+            if len(splited_string) == 6: #when id is included
                 id = splited_string.pop()
+                obj = splited_string.pop()
                 
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':id, 'focus':False}
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':obj, 'id': id, 'focus':False}
 
+            elif len(splited_string) == 5:
+                id_or_oibj = splited_string.pop()
+                is_id = self.is_convertible_to_int(id_or_oibj)
+                coords = [int(part.strip()) for part in splited_string]
+                coords = xyhw_to_xyxy(coords)
+                if is_id:
+                    rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':None, 'id': id, 'focus':False}
+                else:
+                    rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':obj, 'id': None, 'focus':False}
+            
             else:
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':None, 'focus':False}
-
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':None, 'id': None, 'focus':False}
+            
             self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
             
             logger.info(f'trying to remove rect: {rect} from rectangle list: {self.image_label.rectangles}')
