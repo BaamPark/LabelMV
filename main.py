@@ -260,7 +260,7 @@ class MainWindow(QMainWindow):
 
     def export_labels(self, btn=False):
         sequence = self.video_frame_sequences[self.current_frame_index]
-        pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+        pixmap = adjust_video.get_video_frame(self.video_path_for_views[self.current_view], sequence)
         scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
         
         if btn:
@@ -350,12 +350,6 @@ class MainWindow(QMainWindow):
         sequence = self.video_frame_sequences[self.current_frame_index]
         logger.info(f"video_path_for_views[{view}]: {self.video_path_for_views[view]}")
         pixmap = adjust_video.get_video_frame(self.video_path_for_views[view], sequence)
-        # elif view == 1:
-        #     self.current_view = 1
-        #     pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
-        # elif view == 2:
-        #     self.current_view = 2
-        #     pixmap = adjust_video.get_video_frame(self.video_path_view2, sequence)
         scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
         self.image_label.setPixmap(scaled_pixmap)
         self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}")
@@ -388,10 +382,6 @@ class MainWindow(QMainWindow):
         video_frame_sequences_for_views = []
         for i in range(self.number_of_views):
             self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
-
-        # self.video_path_view0 = QFileDialog.getOpenFileName(self, 'Open Main-view Video', '/home')[0]
-        # self.video_path_view1 = QFileDialog.getOpenFileName(self, 'Open Second-view Video', '/home')[0]
-        # self.video_path_view2 = QFileDialog.getOpenFileName(self, 'Open Third-view Video', '/home')[0]
         
         fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
 
@@ -403,12 +393,10 @@ class MainWindow(QMainWindow):
                 video_frame_sequences_for_views.append(adjust_video.get_frame_indices(self.video_path_for_views[i], self.fps))
                 logger.info(f"video_frame_sequences_view{i}: {video_frame_sequences_for_views[i]} (browse_video)")
 
-            logger.info(f"video_frame_sequences_for_views:{video_frame_sequences_for_views}") 
-
             if len(set(map(len, video_frame_sequences_for_views))) != 1:
                 logger.info(f'Video frame sequences have different lengths')
 
-            self.video_frame_sequences = min([video_frame_sequences_for_views], key=len)
+            self.video_frame_sequences = min(video_frame_sequences_for_views, key=len)
 
             self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
             self.current_frame_index = 0
@@ -499,7 +487,7 @@ class MainWindow(QMainWindow):
                     
                     view, frame = int(view), int(frame)
                     sequence = self.video_frame_sequences[self.current_frame_index]
-                    pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+                    pixmap = adjust_video.get_video_frame(self.video_path_for_views[self.current_view], sequence)
                     scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
                     left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
 
@@ -746,7 +734,7 @@ class MainWindow(QMainWindow):
         # image_file = self.image_files[self.current_image_index]
         # source = os.path.join(self.image_dir, image_file)
         sequence = self.video_frame_sequences[self.current_frame_index]
-        pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+        pixmap = adjust_video.get_video_frame(self.video_path_for_views[self.current_view], sequence)
         scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
         return scale_x, scale_y, vertical_offset
     
