@@ -20,10 +20,11 @@ import numpy as np
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, number_of_views, parent=None): #conflict
+    def __init__(self, number_of_views, resolution, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Image Annotation Tool")
         self.number_of_views = int(number_of_views)
+        self.setFixedSize(*map(int, resolution.split('x')))
         self.cls_dict = {'person':0, 'invalid':1}
         self.reverse_cls_dict = {0:'person', 1:'invalid'}
         self.video_annotations = {i: {} for i in range(self.number_of_views)} #! to be remained
@@ -83,17 +84,17 @@ class MainWindow(QMainWindow):
         prev_shorcut = QShortcut(QKeySequence('a'), self)
         prev_shorcut.activated.connect(self.previous_frame)
 
-        self.btn_main_view = QPushButton("Main View")
-        self.btn_main_view.clicked.connect(self.show_main_view)
-        self.btn_main_view.setFixedWidth(100)
-
         self.btn_next_view = QPushButton("Next View")
         self.btn_next_view.clicked.connect(self.show_next_view)
         self.btn_next_view.setFixedWidth(100)
+        next_view_shorcut = QShortcut(QKeySequence('w'), self)
+        next_view_shorcut.activated.connect(self.show_next_view)
 
         self.btn_prev_view = QPushButton("Prev View")
         self.btn_prev_view.clicked.connect(self.show_prev_view)
         self.btn_prev_view.setFixedWidth(100)
+        prev_view_shorcut = QShortcut(QKeySequence('s'), self)
+        prev_view_shorcut.activated.connect(self.show_prev_view)
 
         self.btn_load_prev_labels = QPushButton("Load prebox")
         self.btn_load_prev_labels.clicked.connect(self.load_prev_labels)  # Connect to the function that runs the YOLO detector
@@ -171,7 +172,6 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.btn_browse)
         button_layout.addWidget(self.btn_next)
         button_layout.addWidget(self.btn_prev)
-        button_layout.addWidget(self.btn_main_view)
         button_layout.addWidget(self.btn_next_view)
         button_layout.addWidget(self.btn_prev_view)
         button_layout.addWidget(self.btn_load_prev_labels)
@@ -422,11 +422,6 @@ class MainWindow(QMainWindow):
             self.load_video_frame(view=self.current_view)
             # self.export_labels()
 
-
-    def show_main_view(self):
-        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        self.load_video_frame(view=0)
-        self.export_labels()
 
     def show_next_view(self):
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
@@ -805,8 +800,9 @@ def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     number_of_views = sys.argv[1] if len(sys.argv) > 1 else "0"
+    resolution = sys.argv[2] if len(sys.argv) > 2 else "1280x720"
 
-    main = MainWindow(number_of_views)
+    main = MainWindow(number_of_views, resolution)
     main.show()
 
     sys.exit(app.exec_())

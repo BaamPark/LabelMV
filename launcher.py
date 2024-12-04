@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QPushButton, QLabel, QLineEdit, QWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QPushButton, QLabel, QLineEdit, QWidget, QComboBox
 from PyQt5.QtCore import Qt
 import subprocess
 
@@ -9,14 +9,23 @@ class LauncherWindow(QMainWindow):
     def __init__(self, parent=None):
         super(LauncherWindow, self).__init__(parent)
         self.setWindowTitle("Launcher UI")
-        self.setGeometry(100, 100, 400, 200)
+        self.setGeometry(100, 100, 400, 300)
 
         # Number input section
-        self.label = QLabel("Set Number:", self)
-        self.label.setAlignment(Qt.AlignCenter)
+        self.label_number = QLabel("Set Number:", self)
+        self.label_number.setAlignment(Qt.AlignCenter)
         self.number_input = QLineEdit(self)
         self.number_input.setPlaceholderText("Enter a number")
         self.number_input.setAlignment(Qt.AlignCenter)
+
+        # Resolution dropdown
+        self.label_resolution = QLabel("Select Resolution:", self)
+        self.label_resolution.setAlignment(Qt.AlignCenter)
+        self.resolution_dropdown = QComboBox(self)
+        self.resolution_dropdown.addItems([
+            "800x600", "1024x768", "1280x720", 
+            "1366x768", "1920x1080", "2560x1440"
+        ])  # Add more options as needed
 
         # Button to open main UI
         self.main_ui_button = QPushButton("Open Main UI", self)
@@ -24,8 +33,10 @@ class LauncherWindow(QMainWindow):
 
         # Layout setup
         layout = QVBoxLayout()
-        layout.addWidget(self.label)
+        layout.addWidget(self.label_number)
         layout.addWidget(self.number_input)
+        layout.addWidget(self.label_resolution)
+        layout.addWidget(self.resolution_dropdown)
         layout.addWidget(self.main_ui_button)
 
         container = QWidget()
@@ -40,8 +51,11 @@ class LauncherWindow(QMainWindow):
             if not entered_number.isdigit():
                 entered_number = "0"  # Default value if input is not valid
 
-            # Launch the main UI and pass the number as an argument
-            subprocess.Popen([sys.executable, "main.py", entered_number])
+            # Get the selected resolution
+            selected_resolution = self.resolution_dropdown.currentText()
+
+            # Launch the main UI and pass the number and resolution as arguments
+            subprocess.Popen([sys.executable, "main.py", entered_number, selected_resolution])
 
             # Close the launcher UI
             self.close()
