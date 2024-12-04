@@ -26,7 +26,8 @@ class MainWindow(QMainWindow):
         self.number_of_views = int(number_of_views)
         self.cls_dict = {'person':0, 'invalid':1}
         self.reverse_cls_dict = {0:'person', 1:'invalid'}
-        self.video_annotations = {0:{}, 1:{}, 2:{}} #! to be remained
+        self.video_annotations = {i: {} for i in range(self.number_of_views)} #! to be remained
+        logger.info(f"video_annotations: {self.video_annotations}")
         #{view0: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, view1: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, ...}
 
         self.homography = pickle.load(open('homography.pkl', 'rb'))
@@ -70,13 +71,13 @@ class MainWindow(QMainWindow):
         # self.btn_browse.clicked.connect(self.browse_folder)
         self.btn_browse.setFixedWidth(100)
 
-        self.btn_next = QPushButton("Next")
+        self.btn_next = QPushButton("Next Frame")
         self.btn_next.clicked.connect(self.next_frame)
         self.btn_next.setFixedWidth(100)
         next_shorcut = QShortcut(QKeySequence('d'), self)
         next_shorcut.activated.connect(self.next_frame)
 
-        self.btn_prev = QPushButton("Previous")
+        self.btn_prev = QPushButton("Previous Frame")
         self.btn_prev.clicked.connect(self.previous_frame)
         self.btn_prev.setFixedWidth(100)
         prev_shorcut = QShortcut(QKeySequence('a'), self)
@@ -86,13 +87,13 @@ class MainWindow(QMainWindow):
         self.btn_main_view.clicked.connect(self.show_main_view)
         self.btn_main_view.setFixedWidth(100)
 
-        self.btn_second_view = QPushButton("Second View")
-        self.btn_second_view.clicked.connect(self.show_second_view)
-        self.btn_second_view.setFixedWidth(100)
+        self.btn_next_view = QPushButton("Next View")
+        self.btn_next_view.clicked.connect(self.show_next_view)
+        self.btn_next_view.setFixedWidth(100)
 
-        self.btn_third_view = QPushButton("Third View")
-        self.btn_third_view.clicked.connect(self.show_third_view)
-        self.btn_third_view.setFixedWidth(100)
+        self.btn_prev_view = QPushButton("Prev View")
+        self.btn_prev_view.clicked.connect(self.show_prev_view)
+        self.btn_prev_view.setFixedWidth(100)
 
         self.btn_load_prev_labels = QPushButton("Load prebox")
         self.btn_load_prev_labels.clicked.connect(self.load_prev_labels)  # Connect to the function that runs the YOLO detector
@@ -171,8 +172,8 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.btn_next)
         button_layout.addWidget(self.btn_prev)
         button_layout.addWidget(self.btn_main_view)
-        button_layout.addWidget(self.btn_second_view)
-        button_layout.addWidget(self.btn_third_view)
+        button_layout.addWidget(self.btn_next_view)
+        button_layout.addWidget(self.btn_prev_view)
         button_layout.addWidget(self.btn_load_prev_labels)
         button_layout.addWidget(self.btn_run_detector)
         button_layout.addWidget(self.btn_add_label)
@@ -434,14 +435,24 @@ class MainWindow(QMainWindow):
         self.load_video_frame(view=0)
         self.export_labels()
 
-    def show_second_view(self):
+    def show_next_view(self):
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        self.load_video_frame(view=1)
+        #try if current view is greater than self.number_of_views
+        if self.current_view >= self.number_of_views-1:
+            self.current_view = 0
+        else:
+            self.current_view += 1
+        logger.info(f"changed current_view: {self.current_view} (show_second_view)")
+        self.load_video_frame(view=self.current_view)
         self.export_labels()
 
-    def show_third_view(self):
+    def show_prev_view(self):
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        self.load_video_frame(view=2)
+        if self.current_view <= 0:
+            self.current_view = self.number_of_views-1
+        else:
+            self.current_view -= 1
+        self.load_video_frame(view=self.current_view)
         self.export_labels()
 
     def clear_labels(self):
