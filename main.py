@@ -15,16 +15,21 @@ from PyQt5.QtWidgets import QShortcut
 import adjust_video
 from yolo import run_yolo
 from logger_config import logger
+import pickle
+import numpy as np
 
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Image Annotation Tool")
-        self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'ns':7, 'invalid':8}
-        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'ns', 8:'invalid'}
+        self.cls_dict = {'person':0, 'invalid':1}
+        self.reverse_cls_dict = {0:'person', 1:'invalid'}
         self.video_annotations = {0:{}, 1:{}, 2:{}} #! to be remained
         #{view0: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, view1: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, ...}
+
+        self.homography = pickle.load(open('homography.pkl', 'rb'))
+        self.homography_inv = pickle.load(open('homography_inv.pkl', 'rb'))
 
         self.current_view = 0 #! to be remained
         self.current_frame_index = 0 #! to be remained
@@ -602,7 +607,7 @@ class MainWindow(QMainWindow):
     def edit_text(self):
         new_obj = self.text_widget_for_obj.toPlainText()
         new_id = self.text_widget_for_id.toPlainText()
-        current_item = self.bbox_list_widget.currentItem()
+        current_item = self.bbox_list_widget.currentItem()   
 
         # If an item is selected, update its text
         if current_item is not None:
@@ -632,7 +637,45 @@ class MainWindow(QMainWindow):
 
         # Force a repaint
         self.image_label.update()
+        
+        
 
+    def compute_homography_matrix(self):
+        new_obj = self.text_widget_for_obj.toPlainText()
+        new_id = self.text_widget_for_id.toPlainText()
+        current_item = self.bbox_list_widget.currentItem()   
+
+        if current_item is not None:
+            current_text = current_item.text()
+            splited_string = current_text.replace('(', '').replace(')', '').split(',')
+            if len(splited_string) > 4:
+                splited_string = splited_string[:4]
+                current_text = "({},{},{},{})".format(splited_string[0], splited_string[1], splited_string[2], splited_string[3])
+
+            current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)  # append the new text after a comma for separation
+            
+            left, top, width, height = map(int, splited_string)
+
+        mapped_xyhw = self.map_bbox_with_homography(left, top, width, height)
+        self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]] = [f"({mapped_xyhw[0]},{mapped_xyhw[1]},{mapped_xyhw[2]},{mapped_xyhw[3]}), {new_obj}, {new_id}"]
+
+    def map_bbox_with_homography(self, left, top, width, height): 
+        org_ltwh = self.convert_pixmap_to_source_coordinate(left, top, width, height)
+        org_ltbr= xyhw_to_xyxy(org_ltwh)
+        top_left_homogeneous = np.array([*[org_ltbr[0], org_ltbr[1]], 1])
+        mapped_top_left = np.dot(self.homography, top_left_homogeneous)
+        mapped_top_left /= mapped_top_left[2]  # Normalize to get (x, y) coordinates
+        mapped_top_left = int(mapped_top_left[0]), int(mapped_top_left[1])
+
+        bottom_right_homogeneous = np.array([*[org_ltbr[2], org_ltbr[3]], 1])
+        mapped_bottom_right = np.dot(self.homography, bottom_right_homogeneous)
+        mapped_bottom_right /= mapped_bottom_right[2]  # Normalize to get (x, y) coordinates
+        mapped_bottom_right = int(mapped_bottom_right[0]), int(mapped_bottom_right[1])
+        mapped_xyxy = [mapped_top_left[0], mapped_top_left[1], mapped_bottom_right[0], mapped_bottom_right[1]]
+        mapped_xyhw = xyhw_to_xyxy(mapped_xyxy, reverse=True)
+        
+        mapped_xyhw = self.convert_source_to_pixmap_coordinate(mapped_xyhw[0], mapped_xyhw[1], mapped_xyhw[2], mapped_xyhw[3])
+        return mapped_xyhw
 
     #convert_yolo_format function has 
     def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
@@ -683,9 +726,11 @@ class MainWindow(QMainWindow):
     
 
     def prepend_calculate_scale_and_offset(self):
-        image_file = self.image_files[self.current_image_index]
-        source = os.path.join(self.image_dir, image_file)
-        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
+        # image_file = self.image_files[self.current_image_index]
+        # source = os.path.join(self.image_dir, image_file)
+        sequence = self.video_frame_sequences[self.current_frame_index]
+        pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
         return scale_x, scale_y, vertical_offset
     
 
@@ -698,7 +743,7 @@ class MainWindow(QMainWindow):
         w = int(w * scale_x)
         h = int(h * scale_y)
 
-        return x, y, w, h 
+        return [x, y, w, h]
     
     def convert_pixmap_to_source_coordinate(self, x, y, w, h):
         x, y, w, h = map(int, (x, y, w, h))
@@ -709,7 +754,7 @@ class MainWindow(QMainWindow):
         w = int(w / scale_x)
         h = int(h / scale_y)
         
-        return x, y, w, h 
+        return [x, y, w, h]
 
 #external function
 def xyhw_to_xyxy(coords, reverse=False):
@@ -718,6 +763,7 @@ def xyhw_to_xyxy(coords, reverse=False):
     else:
         coords[2], coords[3] = coords[2] - coords[0], coords[3] - coords[1]
     return coords
+
 
 
 #this function will be called when text edit button is pressed
