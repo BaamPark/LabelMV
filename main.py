@@ -20,9 +20,10 @@ import numpy as np
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, parent=None): #conflict
+    def __init__(self, number_of_views, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Image Annotation Tool")
+        self.number_of_views = int(number_of_views)
         self.cls_dict = {'person':0, 'invalid':1}
         self.reverse_cls_dict = {0:'person', 1:'invalid'}
         self.video_annotations = {0:{}, 1:{}, 2:{}} #! to be remained
@@ -799,8 +800,9 @@ def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    number_of_views = sys.argv[1] if len(sys.argv) > 1 else "0"
 
-    main = MainWindow()
+    main = MainWindow(number_of_views)
     main.show()
 
     sys.exit(app.exec_())
