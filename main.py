@@ -348,15 +348,14 @@ class MainWindow(QMainWindow):
     def load_video_frame(self, view=0):
         self.image_label.clicked_rect_index = []
         sequence = self.video_frame_sequences[self.current_frame_index]
-        if view == 0:
-            self.current_view = 0
-            pixmap = adjust_video.get_video_frame(self.video_path_view0, sequence)
-        elif view == 1:
-            self.current_view = 1
-            pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
-        elif view == 2:
-            self.current_view = 2
-            pixmap = adjust_video.get_video_frame(self.video_path_view2, sequence)
+        logger.info(f"video_path_for_views[{view}]: {self.video_path_for_views[view]}")
+        pixmap = adjust_video.get_video_frame(self.video_path_for_views[view], sequence)
+        # elif view == 1:
+        #     self.current_view = 1
+        #     pixmap = adjust_video.get_video_frame(self.video_path_view1, sequence)
+        # elif view == 2:
+        #     self.current_view = 2
+        #     pixmap = adjust_video.get_video_frame(self.video_path_view2, sequence)
         scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
         self.image_label.setPixmap(scaled_pixmap)
         self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}")
@@ -385,25 +384,31 @@ class MainWindow(QMainWindow):
 
 
     def browse_video(self):
-        self.video_path_view0 = QFileDialog.getOpenFileName(self, 'Open Main-view Video', '/home')[0]
-        self.video_path_view1 = QFileDialog.getOpenFileName(self, 'Open Second-view Video', '/home')[0]
-        self.video_path_view2 = QFileDialog.getOpenFileName(self, 'Open Third-view Video', '/home')[0]
+        self.video_path_for_views = []
+        video_frame_sequences_for_views = []
+        for i in range(self.number_of_views):
+            self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
+
+        # self.video_path_view0 = QFileDialog.getOpenFileName(self, 'Open Main-view Video', '/home')[0]
+        # self.video_path_view1 = QFileDialog.getOpenFileName(self, 'Open Second-view Video', '/home')[0]
+        # self.video_path_view2 = QFileDialog.getOpenFileName(self, 'Open Third-view Video', '/home')[0]
         
         fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
 
         if ok:
             self.fps = fps
-            self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_view0)
+            self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_for_views[0])
+            
+            for i in range(self.number_of_views):
+                video_frame_sequences_for_views.append(adjust_video.get_frame_indices(self.video_path_for_views[i], self.fps))
+                logger.info(f"video_frame_sequences_view{i}: {video_frame_sequences_for_views[i]} (browse_video)")
 
-            video_frame_sequences_view0 = adjust_video.get_frame_indices(self.video_path_view0, self.fps)
-            video_frame_sequences_view1 = adjust_video.get_frame_indices(self.video_path_view1, self.fps)
-            video_frame_sequences_view2 = adjust_video.get_frame_indices(self.video_path_view2, self.fps)
-            logger.info(f"video_frame_sequences_view0: {video_frame_sequences_view0} (browse_video)")
+            logger.info(f"video_frame_sequences_for_views:{video_frame_sequences_for_views}") 
 
-            if len(video_frame_sequences_view0) != len(video_frame_sequences_view1) or len(video_frame_sequences_view0) != len(video_frame_sequences_view2):
-                logger.info(f'Video frame sequences have different lengths: view0:{len(video_frame_sequences_view0)}, view1:{len(video_frame_sequences_view1)}, view2:{len(video_frame_sequences_view2)}')
+            if len(set(map(len, video_frame_sequences_for_views))) != 1:
+                logger.info(f'Video frame sequences have different lengths')
 
-            self.video_frame_sequences = min([video_frame_sequences_view0, video_frame_sequences_view1, video_frame_sequences_view2], key=len)
+            self.video_frame_sequences = min([video_frame_sequences_for_views], key=len)
 
             self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
             self.current_frame_index = 0
