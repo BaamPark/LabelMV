@@ -655,44 +655,6 @@ class MainWindow(QMainWindow):
         # Force a repaint
         self.image_label.update()
         
-        
-
-    def compute_homography_matrix(self):
-        new_obj = self.text_widget_for_obj.toPlainText()
-        new_id = self.text_widget_for_id.toPlainText()
-        current_item = self.bbox_list_widget.currentItem()   
-
-        if current_item is not None:
-            current_text = current_item.text()
-            splited_string = current_text.replace('(', '').replace(')', '').split(',')
-            if len(splited_string) > 4:
-                splited_string = splited_string[:4]
-                current_text = "({},{},{},{})".format(splited_string[0], splited_string[1], splited_string[2], splited_string[3])
-
-            current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)  # append the new text after a comma for separation
-            
-            left, top, width, height = map(int, splited_string)
-
-        mapped_xyhw = self.map_bbox_with_homography(left, top, width, height)
-        self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]] = [f"({mapped_xyhw[0]},{mapped_xyhw[1]},{mapped_xyhw[2]},{mapped_xyhw[3]}), {new_obj}, {new_id}"]
-
-    def map_bbox_with_homography(self, left, top, width, height): 
-        org_ltwh = self.convert_pixmap_to_source_coordinate(left, top, width, height)
-        org_ltbr= xyhw_to_xyxy(org_ltwh)
-        top_left_homogeneous = np.array([*[org_ltbr[0], org_ltbr[1]], 1])
-        mapped_top_left = np.dot(self.homography, top_left_homogeneous)
-        mapped_top_left /= mapped_top_left[2]  # Normalize to get (x, y) coordinates
-        mapped_top_left = int(mapped_top_left[0]), int(mapped_top_left[1])
-
-        bottom_right_homogeneous = np.array([*[org_ltbr[2], org_ltbr[3]], 1])
-        mapped_bottom_right = np.dot(self.homography, bottom_right_homogeneous)
-        mapped_bottom_right /= mapped_bottom_right[2]  # Normalize to get (x, y) coordinates
-        mapped_bottom_right = int(mapped_bottom_right[0]), int(mapped_bottom_right[1])
-        mapped_xyxy = [mapped_top_left[0], mapped_top_left[1], mapped_bottom_right[0], mapped_bottom_right[1]]
-        mapped_xyhw = xyhw_to_xyxy(mapped_xyxy, reverse=True)
-        
-        mapped_xyhw = self.convert_source_to_pixmap_coordinate(mapped_xyhw[0], mapped_xyhw[1], mapped_xyhw[2], mapped_xyhw[3])
-        return mapped_xyhw
 
     def convert_org_lthw(self, bbox0, bbox1, bbox2, bbox3, reverse=False):
         if not reverse:
