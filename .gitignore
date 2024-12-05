@@ -1,10 +1,11 @@
 saved IDs/
 homo_project/
-*.txt
 samples/
 old_files/
 samples_vid/
-*.ipynb
-annotations*
 __pycache__/
 *.log
+*.txt
+*.ipynb
+*.jpg
+annotations*
