@@ -3,7 +3,7 @@ import os
 from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSlider, QInputDialog
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QBrush, QColor, QPolygon
 from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit
+from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit, QInputDialog
 from PyQt5.QtGui import QImage, QFont
 from Clickablebox import ClickableImageLabel
 from PyQt5.QtWidgets import QScrollArea
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
         font = QFont()
         font.setPointSize(10) 
         self.frame_indicator = QLabel()
-        self.frame_indicator.setText("Current frame: None")  # Initial text
+        self.frame_indicator.setText("Current frame: None, Current view: None")  # Initial text
         self.frame_indicator.setFixedHeight(20)
         self.frame_indicator.setFont(font)
         self.frame_indicator.setAlignment(Qt.AlignBottom)
@@ -210,11 +210,12 @@ class MainWindow(QMainWindow):
         text_list_layout.addWidget(self.bbox_list_widget)
         # text_list_layout.addWidget(self.image_list_widget)
         
-        text_list_layout.addWidget(self.objwidget)
-        text_list_layout.addWidget(self.btn_enter_id)
-        text_list_layout.addWidget(self.btn_next_id)
-        text_list_layout.addWidget(self.btn_prev_id)
-        text_list_layout.addWidget(self.saved_image_label)
+        #The below comment is for image per id loading
+        # text_list_layout.addWidget(self.objwidget)
+        # text_list_layout.addWidget(self.btn_enter_id)
+        # text_list_layout.addWidget(self.btn_next_id)
+        # text_list_layout.addWidget(self.btn_prev_id)
+        # text_list_layout.addWidget(self.saved_image_label)
 
         # Create a QHBoxLayout instance for the overall layout
         layout = QHBoxLayout()
@@ -228,6 +229,8 @@ class MainWindow(QMainWindow):
 
 
     def update_scroll(self, value):
+        logger.info("<==update_scroll function is called==>")
+        logger.info(f"value: {value}")
         self.current_frame_index = value
         self.load_video_frame()
 
@@ -266,7 +269,7 @@ class MainWindow(QMainWindow):
         self.image_label.update()
 
 
-    def export_labels(self, btn=False):
+    def export_labels(self, btn=False, sequence_change=False):
         logger.info(f"<==export_labels function is called==>")
         if btn:
             options = QFileDialog.Options()
@@ -282,17 +285,14 @@ class MainWindow(QMainWindow):
         with open(filename, 'w') as f:
             for view in self.video_annotations:
                 for frame_num, annotations in self.video_annotations[view].items():
-                    for annotation in annotations:
+                    find_misformat = False
+                    for i, annotation in enumerate(annotations):
                         splited_string = [s.strip() for s in annotation.replace('(', '').replace(')', '').split(',')]
                         if len(splited_string) < 5: #when id is not included
-                        # Show a message box
-                            # msg = QMessageBox()
-                            # msg.setIcon(QMessageBox.Warning)
-                            # msg.setText("Object missing!")
-                            # msg.setInformativeText(f"The Object is missing at view{view}, frame {frame_num}.")
-                            # msg.setWindowTitle("Export Warning")
-                            # msg.exec_()
+                            if sequence_change:
+                                find_misformat = True
                             continue
+
                         logger.info(f"annotations: {annotations} at export_labels")
                         bbox, obj, id = annotation.rsplit(', ', 2)
                         x, y, w, h = map(int, bbox.strip('()').split(','))
@@ -303,6 +303,15 @@ class MainWindow(QMainWindow):
                             obj = 'invalid'
                         logger.info(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}")
                         f.write(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}\n")
+                    
+                    if find_misformat:
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Warning)
+                        msg.setText("Object or ID missing!")
+                        msg.setInformativeText(f"The Object is missing at view{view}, frame {frame_num}.")
+                        msg.setWindowTitle("Export Warning")
+                        msg.exec_()
+                        continue
     
     
     def enter_id(self):
@@ -362,7 +371,7 @@ class MainWindow(QMainWindow):
         pixmap = self.video_handler_objects[view].get_video_frame(sequence)
         scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
         self.image_label.setPixmap(scaled_pixmap)
-        self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}")
+        self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}, Current view: {self.current_view}")
         self.image_label.rectangles.clear()
         
         # if annotation was made at this frame and at this view
@@ -424,17 +433,17 @@ class MainWindow(QMainWindow):
         if self.current_frame_index < len(self.video_frame_sequences) - 1:
             self.current_frame_index += 1
             self.load_video_frame(view=self.current_view)
-            self.export_labels()
+            self.export_labels(btn=False, sequence_change=True)
 
 
     def previous_frame(self):
         logger.info(f"<==previous_frame function is called==>")
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (previous_frame)")
-        if self.current_frame_index >= 0:
+        if self.current_frame_index > 0:
             self.current_frame_index -= 1
             self.load_video_frame(view=self.current_view)
-            # self.export_labels()
+            self.export_labels(btn=False, sequence_change=True)
 
 
     def show_next_view(self):
@@ -552,42 +561,68 @@ class MainWindow(QMainWindow):
     
     def associate_id(self):
         logger.info(f"<==associate_id function is called==>")
-        #change 0 to self.current_view
+        items = [i for i in range(self.number_of_views)]  # Dropdown options
+        items.remove(self.current_view)
+        items = [str(i) for i in items]
+
+        selected_view, ok = QInputDialog.getItem(
+            self, 
+            "Select an option", 
+            "Choose a view to be associated:", 
+            items, 
+            editable=False
+        )
+        selected_view = int(selected_view)
+
         try:
-            self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-            label_list_from_view0 = self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]]
-            logger.info(f"view0 annotations:{self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]]}")
-            logger.info(f"view1 annotations:{self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]]}")
-            label_list_from_view1 = self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]]
-            ids_from_view0 = list(map(extract_id_from_label, label_list_from_view0))
-            # objects_from_view0 = map(extract_object_from_label, label_list_from_view0)
-            bbox_list_from_view0 = list(map(extract_bbox_from_label, label_list_from_view0))
-            bbox_list_from_view1 = list(map(extract_bbox_from_label, label_list_from_view1))
-            logger.info(f"bbox_list_from_view0: {bbox_list_from_view0}")
-            logger.info(f"bbox_list_from_view1: {bbox_list_from_view1}")
-            distance_matrix = compute_homography_distance(bbox_list_from_view0, bbox_list_from_view1)
+            self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+            logger.info(f"annotations: {self.video_annotations}")
+            if not self.video_annotations[self.current_view] or not self.video_annotations[selected_view]:
+                raise ValueError("No bounding box found in source or target view")
+            label_list_from_source_view = self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]]
+            label_list_from_target_view = self.video_annotations[selected_view][self.video_frame_sequences[self.current_frame_index]]
+            logger.info(f"source view annotations:{self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]]}")
+            logger.info(f"target view annotations:{self.video_annotations[selected_view][self.video_frame_sequences[self.current_frame_index]]}")
+            ids_from_source_view = list(map(extract_id_from_label, label_list_from_source_view))
+            if None in ids_from_source_view:
+                raise ValueError("Not all bounding boxes have ids!")
+
+            bbox_list_from_source_view = list(map(extract_bbox_from_label, label_list_from_source_view))
+            bbox_list_from_target_view = list(map(extract_bbox_from_label, label_list_from_target_view))
+            logger.info(f"bbox_list_from_source_view: {bbox_list_from_source_view}")
+            logger.info(f"bbox_list_from_target_view: {bbox_list_from_target_view}")
+            distance_matrix = compute_homography_distance(bbox_list_from_source_view, bbox_list_from_target_view)
             if distance_matrix.shape[0] != distance_matrix.shape[1]:
                 raise ValueError("The number of bounding box does not match between the two views!")
+            
             assignments = hungarian_algorithm(distance_matrix)
-            assignments = [[id_view0, pair[1]] for pair, id_view0 in zip(assignments, ids_from_view0)] #change row_index to real id
+            assignments = [[id_from_source_view, pair[1]] for pair, id_from_source_view in zip(assignments, ids_from_source_view)] #change row_index to real id
             
             new_labels = []
-            for (id_view0, id_view1), bbox_view1 in zip(assignments, bbox_list_from_view1):
-                label = f"({bbox_view1[0]}, {bbox_view1[1]}, {bbox_view1[2]}, {bbox_view1[3]}), person, {id_view0}"
+            for (id_source_view, id_target_view), bbox_target_view in zip(assignments, bbox_list_from_target_view):
+                label = f"({bbox_target_view[0]}, {bbox_target_view[1]}, {bbox_target_view[2]}, {bbox_target_view[3]}), person, {id_source_view}"
                 new_labels.append(label)
 
-            self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]] = new_labels
+            self.video_annotations[selected_view][self.video_frame_sequences[self.current_frame_index]] = new_labels
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Information)  # Use Information or NoIcon instead of Warning
             msg.setText("Association complete!")
             msg.setWindowTitle("Association Information")  # Adjust title if needed
             msg.exec_()
 
+        except ValueError as e:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(str(e))
+            logger.info(f"Value Error: {e}")
+            msg.setWindowTitle("Association Warning")
+            msg.exec_()
 
         except Exception as e:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
-            msg.setText("No bounding box in the other view!")
+            msg.setText(str(e))
+            logger.info(f"Exception: {e}")
             msg.setWindowTitle("Association Warning")
             msg.exec_()
 
