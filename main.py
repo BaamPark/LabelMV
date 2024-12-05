@@ -428,6 +428,7 @@ class MainWindow(QMainWindow):
 
     def next_frame(self):
         logger.info(f"<==next_frame function is called==>")
+        self.h_slider.setValue(self.current_frame_index)
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (next_frame)")
         if self.current_frame_index < len(self.video_frame_sequences) - 1:
@@ -438,6 +439,7 @@ class MainWindow(QMainWindow):
 
     def previous_frame(self):
         logger.info(f"<==previous_frame function is called==>")
+        self.h_slider.setValue(self.current_frame_index)
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (previous_frame)")
         if self.current_frame_index > 0:
