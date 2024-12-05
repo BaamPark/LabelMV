@@ -59,9 +59,9 @@ class MainWindow(QMainWindow):
         self.objwidget.setFixedWidth(200)  # Set a fixed height
         self.objwidget.setFixedHeight(25)
 
-        self.image_list_widget = QListWidget()  # The new QListWidget
-        self.image_list_widget.itemDoubleClicked.connect(self.load_image_from_list) #! to be removed
-        self.image_list_widget.setFixedWidth(200)
+        # self.image_list_widget = QListWidget()  # The new QListWidget
+        # self.image_list_widget.itemDoubleClicked.connect(self.load_image_from_list) #! to be removed
+        # self.image_list_widget.setFixedWidth(200)
 
         font = QFont()
         font.setPointSize(10) 
@@ -206,7 +206,7 @@ class MainWindow(QMainWindow):
         text_list_layout.addWidget(self.text_widget_for_id)
         text_list_layout.addWidget(self.btn_edit_text)
         text_list_layout.addWidget(self.bbox_list_widget)
-        text_list_layout.addWidget(self.image_list_widget)
+        # text_list_layout.addWidget(self.image_list_widget)
         
         text_list_layout.addWidget(self.objwidget)
         text_list_layout.addWidget(self.btn_enter_id)
@@ -341,13 +341,13 @@ class MainWindow(QMainWindow):
         self.saved_image_label.setPixmap(scaled_pixmap)
 
 
-    def load_image_from_list(self, item):
-        logger.info(f"<==load_image_from_list function is called==>")
-        self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        image_file = item.text()
-        self.current_image_index = self.image_files.index(image_file)
-        logger.info(f"image_file: {image_file} (load_image_from_list)")
-        self.load_video_frame()
+    # def load_image_from_list(self, item):
+    #     logger.info(f"<==load_image_from_list function is called==>")
+    #     self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+    #     image_file = item.text()
+    #     self.current_image_index = self.image_files.index(image_file)
+    #     logger.info(f"image_file: {image_file} (load_image_from_list)")
+    #     self.load_video_frame()
 
 
     def load_video_frame(self, view=0):
@@ -511,48 +511,49 @@ class MainWindow(QMainWindow):
 
 
     def run_detector(self):
-        if self.image_files:
-            image_file = self.image_files[self.current_image_index]
-            source = os.path.join(self.image_dir, image_file)
-            _, bbox_list = run_yolo(source)
-            pixmap = QPixmap(source)
-            # Scale the QPixmap to fit the QLabel
-            pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
+        logger.info(f"<==run_detector function is called==>")
+        frame = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=False)
+        _, bbox_list = run_yolo(frame)
+        pixmap = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=True)
+        # Scale the QPixmap to fit the QLabel
+        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
 
-            # Update QLabel 
-            self.image_label.setPixmap(pixmap)
+        # Update QLabel 
+        self.image_label.setPixmap(pixmap)
 
-            # Clear the rectangles list of the image_label
-            self.image_label.rectangles = [] 
+        # Clear the rectangles list of the image_label
+        self.image_label.rectangles = [] 
 
-            for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
-                left, top, width, height = self.convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height)
+        for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
+            left, top, width, height = self.convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height)
 
-                # Check if this bounding box already exists in the list widget
-                bbox_str = str((left, top, width, height))
-                bbox_str += ", " + str(box_cls)
-                existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-                rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls, 'focus': False}
-                self.image_label.rectangles.append(rect)
+            # Check if this bounding box already exists in the list widget
+            bbox_str = str((left, top, width, height))
+            bbox_str += ", " + str(box_cls) + ", "
+            existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+            rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls,'id': None, 'focus': False}
+            self.image_label.rectangles.append(rect)
 
-                if bbox_str in existing_items:
-                    continue  # Skip this bounding box
+            if bbox_str in existing_items:
+                continue  # Skip this bounding box
 
-                result_string = [s.strip() for s in bbox_str.replace('(', '').replace(')', '').split(',')] #'(left, top, width, height), ID' => '(left, top, width, height)'
-                
-                bbox_short = "({}, {}, {}, {})".format(result_string[0], result_string[1], result_string[2], result_string[3])
-                
-                found = False
-                for items in existing_items:
-                    if bbox_short in items:
-                        found = True
-                        break
-                if found:
-                    continue
-                self.bbox_list_widget.addItem(bbox_str)
+            result_string = [s.strip() for s in bbox_str.replace('(', '').replace(')', '').split(',')] #'(left, top, width, height), ID' => '(left, top, width, height)'
+            
+            bbox_short = "({}, {}, {}, {})".format(result_string[0], result_string[1], result_string[2], result_string[3])
+            
+            found = False
+            for items in existing_items:
+                if bbox_short in items:
+                    found = True
+                    break
+            if found:
+                continue
 
-            pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-            self.image_label.update()
+            logger.info(f"bbox_str: {bbox_str}")
+            self.bbox_list_widget.addItem(bbox_str)
+
+        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
+        self.image_label.update()
 
 
     def add_label(self):
