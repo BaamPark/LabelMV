@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         self.image_list_widget.setFixedWidth(200)
 
         font = QFont()
-        font.setPointSize(13) 
+        font.setPointSize(10) 
         self.frame_indicator = QLabel()
         self.frame_indicator.setText("Current frame: None")  # Initial text
         self.frame_indicator.setFixedHeight(20)
@@ -265,6 +265,7 @@ class MainWindow(QMainWindow):
 
 
     def export_labels(self, btn=False):
+        logger.info(f"<==export_labels function is called==>")
         if btn:
             options = QFileDialog.Options()
             options |= QFileDialog.DontUseNativeDialog
@@ -293,11 +294,12 @@ class MainWindow(QMainWindow):
                         logger.info(f"annotations: {annotations} at export_labels")
                         bbox, obj, id = annotation.rsplit(', ', 2)
                         x, y, w, h = map(int, bbox.strip('()').split(','))
-                        yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(self.scale_x, self.scale_y, self.vertical_offset, x, y, w, h)
+                        org_l, org_t, org_w, org_h  = self.convert_org_lthw(x, y, w, h)
 
                         if obj not in self.cls_dict:
                             obj = 'invalid'
-                        f.write(f"{view}, {frame_num}, {id}, {obj} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
+                        logger.info(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}")
+                        f.write(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}\n")
     
     
     def enter_id(self):
@@ -340,6 +342,7 @@ class MainWindow(QMainWindow):
 
 
     def load_image_from_list(self, item):
+        logger.info(f"<==load_image_from_list function is called==>")
         self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         image_file = item.text()
         self.current_image_index = self.image_files.index(image_file)
@@ -348,6 +351,7 @@ class MainWindow(QMainWindow):
 
 
     def load_video_frame(self, view=0):
+        logger.info(f"<==load_video_frame function is called==>")
         self.image_label.clicked_rect_index = []
         sequence = self.video_frame_sequences[self.current_frame_index]
         logger.info(f"video_path_for_views[{view}]: {self.video_path_for_views[view]}")
@@ -381,6 +385,7 @@ class MainWindow(QMainWindow):
 
 
     def browse_video(self):
+        logger.info(f"<==browse_video function is called==>")
         self.video_path_for_views = []
         video_frame_sequences_for_views = []
         for i in range(self.number_of_views):
@@ -413,6 +418,7 @@ class MainWindow(QMainWindow):
 
 
     def next_frame(self):
+        logger.info(f"<==next_frame function is called==>")
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (next_frame)")
         if self.current_frame_index < len(self.video_frame_sequences) - 1:
@@ -422,6 +428,7 @@ class MainWindow(QMainWindow):
 
 
     def previous_frame(self):
+        logger.info(f"<==previous_frame function is called==>")
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (previous_frame)")
         if self.current_frame_index >= 0:
@@ -431,6 +438,7 @@ class MainWindow(QMainWindow):
 
 
     def show_next_view(self):
+        logger.info(f"<==show_next_view function is called==>")
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         #try if current view is greater than self.number_of_views
         if self.current_view >= self.number_of_views-1:
@@ -442,6 +450,7 @@ class MainWindow(QMainWindow):
         self.export_labels()
 
     def show_prev_view(self):
+        logger.info(f"<==show_prev_view function is called==>")
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         if self.current_view <= 0:
             self.current_view = self.number_of_views-1
@@ -451,12 +460,14 @@ class MainWindow(QMainWindow):
         self.export_labels()
 
     def clear_labels(self):
+        logger.info(f"<==clear_labels function is called==>")
         self.bbox_list_widget.clear()
         self.image_label.rectangles.clear()
         self.image_label.update()
 
 
     def load_prev_labels(self):
+        logger.info(f"<==load_prev_labels function is called==>")
         prev_sequence = self.video_frame_sequences[self.current_frame_index -1]
         if prev_sequence in self.video_annotations[self.current_view]:
             # self.bbox_list_widget.clear()
@@ -476,6 +487,7 @@ class MainWindow(QMainWindow):
         #     self.bbox_list_widget.clear()
 
     def import_label(self):
+        logger.info(f"<==import_label function is called==>")
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
         file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
@@ -488,7 +500,7 @@ class MainWindow(QMainWindow):
                     obj, x, y, w, h = lbl.split(' ')
                     
                     view, frame = int(view), int(frame)
-                    left, top, width, height= self.convert_yolo_format(self.scale_x, self.scale_y, self.vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
+                    left, top, width, height= self.convert_org_lthw(int(x), int(y), int(w), int(h), reverse=True)
 
                     if frame not in self.video_annotations[view]:
                         self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}"]
@@ -499,7 +511,6 @@ class MainWindow(QMainWindow):
 
 
     def run_detector(self):
-
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
             source = os.path.join(self.image_dir, image_file)
@@ -560,7 +571,7 @@ class MainWindow(QMainWindow):
 
 
     def remove_label(self):
-        #remove highlighted rectangle when loading image
+        logger.info(f"<==remove_label function is called==>")
         if self.image_label.clicked_rect_index:
             self.image_label.clicked_rect_index.pop()
 
@@ -609,6 +620,7 @@ class MainWindow(QMainWindow):
 
 
     def edit_text(self):
+        logger.info(f"<==edit_text function is called==>")
         new_obj = self.text_widget_for_obj.toPlainText()
         new_id = self.text_widget_for_id.toPlainText()
         current_item = self.bbox_list_widget.currentItem()   
@@ -681,7 +693,15 @@ class MainWindow(QMainWindow):
         mapped_xyhw = self.convert_source_to_pixmap_coordinate(mapped_xyhw[0], mapped_xyhw[1], mapped_xyhw[2], mapped_xyhw[3])
         return mapped_xyhw
 
-    #convert_yolo_format function has 
+    def convert_org_lthw(self, bbox0, bbox1, bbox2, bbox3, reverse=False):
+        if not reverse:
+            org_ltwh = self.convert_pixmap_to_source_coordinate(bbox0, bbox1, bbox2, bbox3)
+            return org_ltwh[0], org_ltwh[1], org_ltwh[2], org_ltwh[3]
+        
+        else:
+            pix_ltwh = self.convert_source_to_pixmap_coordinate(bbox0, bbox1, bbox2, bbox3)
+            return pix_ltwh[0], pix_ltwh[1], pix_ltwh[2], pix_ltwh[3]
+
     def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
         if not reverse:
             org_left = bbox0 / scale_x
