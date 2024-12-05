@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut
 import adjust_video
+from adjust_video import VideoHandler
 from yolo import run_yolo
 from logger_config import logger
 import pickle
@@ -22,9 +23,11 @@ import numpy as np
 class MainWindow(QMainWindow):
     def __init__(self, number_of_views, resolution, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
-        self.setWindowTitle("Image Annotation Tool")
+        self.video_handler_objects = []
         self.number_of_views = int(number_of_views)
-        self.setFixedSize(*map(int, resolution.split('x')))
+        self.scale_x = None
+        self.scale_y = None
+        self.vertical_offset = None
         self.cls_dict = {'person':0, 'invalid':1}
         self.reverse_cls_dict = {0:'person', 1:'invalid'}
         self.video_annotations = {i: {} for i in range(self.number_of_views)} #! to be remained
@@ -37,6 +40,8 @@ class MainWindow(QMainWindow):
         self.current_view = 0 #! to be remained
         self.current_frame_index = 0 #! to be remained
 
+        self.setWindowTitle("Image Annotation Tool")
+        self.setFixedSize(*map(int, resolution.split('x')))
         self.bbox_list_widget = QListWidget() #! list widget
         self.bbox_list_widget.itemDoubleClicked.connect(self.handle_item_double_clicked)
         self.bbox_list_widget.setFixedWidth(200)
@@ -259,10 +264,6 @@ class MainWindow(QMainWindow):
 
 
     def export_labels(self, btn=False):
-        sequence = self.video_frame_sequences[self.current_frame_index]
-        pixmap = adjust_video.get_video_frame(self.video_path_for_views[self.current_view], sequence)
-        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
-        
         if btn:
             options = QFileDialog.Options()
             options |= QFileDialog.DontUseNativeDialog
@@ -281,17 +282,17 @@ class MainWindow(QMainWindow):
                         splited_string = [s.strip() for s in annotation.replace('(', '').replace(')', '').split(',')]
                         if len(splited_string) < 5: #when id is not included
                         # Show a message box
-                            msg = QMessageBox()
-                            msg.setIcon(QMessageBox.Warning)
-                            msg.setText("Object missing!")
-                            msg.setInformativeText(f"The Object is missing at view{view}, frame {frame_num}.")
-                            msg.setWindowTitle("Export Warning")
-                            msg.exec_()
+                            # msg = QMessageBox()
+                            # msg.setIcon(QMessageBox.Warning)
+                            # msg.setText("Object missing!")
+                            # msg.setInformativeText(f"The Object is missing at view{view}, frame {frame_num}.")
+                            # msg.setWindowTitle("Export Warning")
+                            # msg.exec_()
                             continue
                         logger.info(f"annotations: {annotations} at export_labels")
                         bbox, obj, id = annotation.rsplit(', ', 2)
                         x, y, w, h = map(int, bbox.strip('()').split(','))
-                        yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
+                        yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(self.scale_x, self.scale_y, self.vertical_offset, x, y, w, h)
 
                         if obj not in self.cls_dict:
                             obj = 'invalid'
@@ -349,7 +350,8 @@ class MainWindow(QMainWindow):
         self.image_label.clicked_rect_index = []
         sequence = self.video_frame_sequences[self.current_frame_index]
         logger.info(f"video_path_for_views[{view}]: {self.video_path_for_views[view]}")
-        pixmap = adjust_video.get_video_frame(self.video_path_for_views[view], sequence)
+        # pixmap = adjust_video.get_video_frame(self.video_path_for_views[view], sequence)
+        pixmap = self.video_handler_objects[view].get_video_frame(sequence)
         scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
         self.image_label.setPixmap(scaled_pixmap)
         self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}")
@@ -382,15 +384,19 @@ class MainWindow(QMainWindow):
         video_frame_sequences_for_views = []
         for i in range(self.number_of_views):
             self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
+            self.video_handler_objects.append(VideoHandler(self.video_path_for_views[i]))
+            
+        pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
+        self.scale_x, self.scale_y, self.vertical_offset = self.calculate_scale_and_offset(pixmap)
         
         fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
-
         if ok:
             self.fps = fps
-            self.img_size_width_height = adjust_video.get_video_dimensions(self.video_path_for_views[0])
+            self.img_size_width_height = self.video_handler_objects[0].get_video_dimensions()
             
             for i in range(self.number_of_views):
-                video_frame_sequences_for_views.append(adjust_video.get_frame_indices(self.video_path_for_views[i], self.fps))
+                video_frame_sequences_for_views.append(self.video_handler_objects[i].get_frame_indices(fps))
+                # video_frame_sequences_for_views.append(adjust_video.get_frame_indices(self.video_path_for_views[i], self.fps))
                 logger.info(f"video_frame_sequences_view{i}: {video_frame_sequences_for_views[i]} (browse_video)")
 
             if len(set(map(len, video_frame_sequences_for_views))) != 1:
@@ -481,10 +487,7 @@ class MainWindow(QMainWindow):
                     obj, x, y, w, h = lbl.split(' ')
                     
                     view, frame = int(view), int(frame)
-                    sequence = self.video_frame_sequences[self.current_frame_index]
-                    pixmap = adjust_video.get_video_frame(self.video_path_for_views[self.current_view], sequence)
-                    scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
-                    left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
+                    left, top, width, height= self.convert_yolo_format(self.scale_x, self.scale_y, self.vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
 
                     if frame not in self.video_annotations[view]:
                         self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}"]
@@ -726,10 +729,8 @@ class MainWindow(QMainWindow):
     
 
     def prepend_calculate_scale_and_offset(self):
-        # image_file = self.image_files[self.current_image_index]
-        # source = os.path.join(self.image_dir, image_file)
         sequence = self.video_frame_sequences[self.current_frame_index]
-        pixmap = adjust_video.get_video_frame(self.video_path_for_views[self.current_view], sequence)
+        pixmap = self.video_handler_objects[self.current_view].get_video_frame(sequence)
         scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
         return scale_x, scale_y, vertical_offset
     
