@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 import os
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import Qt
@@ -9,7 +8,21 @@ def extract_bbox_from_label(label):
     atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]
     bbox = atomic_label[:4]
     bbox = map(int, bbox)
-    return bbox
+    return list(bbox)
+
+def extract_object_from_label(label):
+    atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]
+    try:
+        object = int(atomic_label[4])
+    except Exception as e:
+        object = None
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("object is missing for current view!")
+        msg.setWindowTitle("Label format warning")
+        msg.exec_()
+
+    return object
 
 def extract_id_from_label(label):
     atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]
@@ -20,15 +33,10 @@ def extract_id_from_label(label):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Warning)
         msg.setText("ID is missing for current view!")
-        msg.setWindowTitle("Association Warning")
+        msg.setWindowTitle("Label format warning")
         msg.exec_()
 
     return id
-
-def hungarian_algorithm(distance_matrix):
-    row_indices, col_indices = linear_sum_assignment(distance_matrix)
-    assignments = [[row + 1, col + 1] for row, col in zip(row_indices, col_indices)]
-    return assignments
 
 
 def xyhw_to_xyxy(coords, reverse=False):

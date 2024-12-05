@@ -17,8 +17,8 @@ from yolo import run_yolo
 from logger_config import logger
 import pickle
 import numpy as np
-from reID_inference import compute_homography_distance
-from utils import hungarian_algorithm, xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, convert_org_ltwh
+from reID_inference import compute_homography_distance, hungarian_algorithm
+from utils import xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, extract_object_from_label, convert_org_ltwh
 
 
 
@@ -553,14 +553,43 @@ class MainWindow(QMainWindow):
     def associate_id(self):
         logger.info(f"<==associate_id function is called==>")
         #change 0 to self.current_view
-        self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        label_list_from_view1 = self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]]
-        label_list_from_view2 = self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]]
-        ids_from_view1 = map(extract_id_from_label, label_list_from_view1)
-        bbox_list_from_view1 = map(extract_bbox_from_label, label_list_from_view1)
-        bbox_list_from_view2 = map(extract_bbox_from_label, label_list_from_view2)
-        
-        distance_matrix = compute_homography_distance(bbox_list_from_view1, bbox_list_from_view2)
+        try:
+            self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+            label_list_from_view0 = self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]]
+            logger.info(f"view0 annotations:{self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]]}")
+            logger.info(f"view1 annotations:{self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]]}")
+            label_list_from_view1 = self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]]
+            ids_from_view0 = list(map(extract_id_from_label, label_list_from_view0))
+            # objects_from_view0 = map(extract_object_from_label, label_list_from_view0)
+            bbox_list_from_view0 = list(map(extract_bbox_from_label, label_list_from_view0))
+            bbox_list_from_view1 = list(map(extract_bbox_from_label, label_list_from_view1))
+            logger.info(f"bbox_list_from_view0: {bbox_list_from_view0}")
+            logger.info(f"bbox_list_from_view1: {bbox_list_from_view1}")
+            distance_matrix = compute_homography_distance(bbox_list_from_view0, bbox_list_from_view1)
+            if distance_matrix.shape[0] != distance_matrix.shape[1]:
+                raise ValueError("The number of bounding box does not match between the two views!")
+            assignments = hungarian_algorithm(distance_matrix)
+            assignments = [[id_view0, pair[1]] for pair, id_view0 in zip(assignments, ids_from_view0)] #change row_index to real id
+            
+            new_labels = []
+            for (id_view0, id_view1), bbox_view1 in zip(assignments, bbox_list_from_view1):
+                label = f"({bbox_view1[0]}, {bbox_view1[1]}, {bbox_view1[2]}, {bbox_view1[3]}), person, {id_view0}"
+                new_labels.append(label)
+
+            self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]] = new_labels
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Information)  # Use Information or NoIcon instead of Warning
+            msg.setText("Association complete!")
+            msg.setWindowTitle("Association Information")  # Adjust title if needed
+            msg.exec_()
+
+
+        except Exception as e:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("No bounding box in the other view!")
+            msg.setWindowTitle("Association Warning")
+            msg.exec_()
 
 
     def add_label(self):

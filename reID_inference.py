@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+from scipy.optimize import linear_sum_assignment
 
 def get_center_bottom(ltwh: list, homography: np.array, apply_homography=False):
     left, top, width, height = ltwh
@@ -16,26 +17,31 @@ def get_center_bottom(ltwh: list, homography: np.array, apply_homography=False):
     return np.array(target_point)
 
 
-def compute_homography_distance(bbox_list_from_view1: list, bbox_list_from_view2: list):
-    if len(bbox_list_from_view1) != len(bbox_list_from_view2):
+def compute_homography_distance(bbox_list_from_view0: list, bbox_list_from_view1: list):
+    if len(bbox_list_from_view0) != len(bbox_list_from_view1):
         raise ValueError("bbox_list_from_view1 and bbox_list_from_view2 should have the same length.")
     
     homography = pickle.load(open('homography\homography_matrix.pkl', 'rb'))
+    new_bbox_list_from_view0 = [
+        get_center_bottom(bbox_from_view0, homography, apply_homography=True)
+        for bbox_from_view0 in bbox_list_from_view0
+    ]
     new_bbox_list_from_view1 = [
-        get_center_bottom(bbox_from_view1, homography, apply_homography=True)
+        get_center_bottom(bbox_from_view1, homography, apply_homography=False)
         for bbox_from_view1 in bbox_list_from_view1
     ]
-    new_bbox_list_from_view2 = [
-        get_center_bottom(bbox_from_view2, homography, apply_homography=False)
-        for bbox_from_view2 in bbox_list_from_view2
-    ]
 
-    distance_matrix = np.zeros((len(new_bbox_list_from_view1), len(new_bbox_list_from_view2)))
-    for i, point1 in enumerate(new_bbox_list_from_view1):
-        for j, point2 in enumerate(new_bbox_list_from_view2):
-            distance_matrix[i, j] = np.linalg.norm(point1 - point2)
+    distance_matrix = np.zeros((len(new_bbox_list_from_view0), len(new_bbox_list_from_view1)))
+    for i, point0 in enumerate(new_bbox_list_from_view0):
+        for j, point1 in enumerate(new_bbox_list_from_view1):
+            distance_matrix[i, j] = np.linalg.norm(point0 - point1)
 
     return distance_matrix
+
+def hungarian_algorithm(distance_matrix):
+    row_indices, col_indices = linear_sum_assignment(distance_matrix)
+    assignments = [[row + 1, col + 1] for row, col in zip(row_indices, col_indices)]
+    return assignments
 
 
 if __name__ == "__main__":
@@ -56,3 +62,5 @@ if __name__ == "__main__":
     distance_matrix = compute_homography_distance(bbox_list_from_view1, bbox_list_from_view2)
     print("Distance Matrix:")
     print(distance_matrix)
+    assignments = hungarian_algorithm(distance_matrix)
+    print(f"Assignments:{assignments}")
