@@ -17,6 +17,9 @@ from yolo import run_yolo
 from logger_config import logger
 import pickle
 import numpy as np
+from reID_inference import compute_homography_distance
+from utils import hungarian_algorithm, xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, convert_org_ltwh
+
 
 
 class MainWindow(QMainWindow):
@@ -24,17 +27,11 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.video_handler_objects = []
         self.number_of_views = int(number_of_views)
-        self.scale_x = None
-        self.scale_y = None
-        self.vertical_offset = None
         self.cls_dict = {'person':0, 'invalid':1}
         self.reverse_cls_dict = {0:'person', 1:'invalid'}
         self.video_annotations = {i: {} for i in range(self.number_of_views)} #! to be remained
         logger.info(f"video_annotations: {self.video_annotations}")
         #{view0: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, view1: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, ...}
-
-        self.homography = pickle.load(open('homography.pkl', 'rb'))
-        self.homography_inv = pickle.load(open('homography_inv.pkl', 'rb'))
 
         self.current_view = 0 #! to be remained
         self.current_frame_index = 0 #! to be remained
@@ -117,7 +114,11 @@ class MainWindow(QMainWindow):
         self.btn_run_detector.setFixedWidth(100)
         runYolo_shortcut = QShortcut(QKeySequence('q'), self)
         runYolo_shortcut.activated.connect(self.run_detector)
-        
+
+        self.btn_associate_id = QPushButton("Associate IDs")
+        self.btn_associate_id.clicked.connect(self.associate_id)
+        self.btn_associate_id.setFixedWidth(100)
+
         self.btn_add_label = QPushButton("Add Label")
         self.btn_add_label.setCheckable(True) 
         self.btn_add_label.clicked.connect(self.add_label)
@@ -182,6 +183,7 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.btn_prev_view)
         button_layout.addWidget(self.btn_load_prev_labels)
         button_layout.addWidget(self.btn_run_detector)
+        button_layout.addWidget(self.btn_associate_id)
         button_layout.addWidget(self.btn_add_label)
         button_layout.addWidget(self.btn_remove_label)
         button_layout.addWidget(self.btn_clear_all)
@@ -294,7 +296,8 @@ class MainWindow(QMainWindow):
                         logger.info(f"annotations: {annotations} at export_labels")
                         bbox, obj, id = annotation.rsplit(', ', 2)
                         x, y, w, h = map(int, bbox.strip('()').split(','))
-                        org_l, org_t, org_w, org_h  = self.convert_org_lthw(x, y, w, h)
+                        pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
+                        org_l, org_t, org_w, org_h  = convert_org_ltwh(x, y, w, h, reverse=False, pixmap=pixmap, image_label=self.image_label)
 
                         if obj not in self.cls_dict:
                             obj = 'invalid'
@@ -391,9 +394,6 @@ class MainWindow(QMainWindow):
         for i in range(self.number_of_views):
             self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
             self.video_handler_objects.append(VideoHandler(self.video_path_for_views[i]))
-            
-        pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
-        self.scale_x, self.scale_y, self.vertical_offset = self.calculate_scale_and_offset(pixmap)
         
         fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
         if ok:
@@ -500,7 +500,8 @@ class MainWindow(QMainWindow):
                     obj, x, y, w, h = lbl.split(' ')
                     
                     view, frame = int(view), int(frame)
-                    left, top, width, height= self.convert_org_lthw(int(x), int(y), int(w), int(h), reverse=True)
+                    pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
+                    left, top, width, height= convert_org_ltwh(int(x), int(y), int(w), int(h), reverse=True, pixmap=pixmap, image_label=self.image_label)
 
                     if frame not in self.video_annotations[view]:
                         self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}"]
@@ -515,19 +516,13 @@ class MainWindow(QMainWindow):
         frame = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=False)
         _, bbox_list = run_yolo(frame)
         pixmap = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=True)
-        # Scale the QPixmap to fit the QLabel
         pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-
-        # Update QLabel 
         self.image_label.setPixmap(pixmap)
-
-        # Clear the rectangles list of the image_label
         self.image_label.rectangles = [] 
 
         for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
             left, top, width, height = self.convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height)
 
-            # Check if this bounding box already exists in the list widget
             bbox_str = str((left, top, width, height))
             bbox_str += ", " + str(box_cls) + ", "
             existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
@@ -554,6 +549,18 @@ class MainWindow(QMainWindow):
 
         pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
         self.image_label.update()
+    
+    def associate_id(self):
+        logger.info(f"<==associate_id function is called==>")
+        #change 0 to self.current_view
+        self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+        label_list_from_view1 = self.video_annotations[0][self.video_frame_sequences[self.current_frame_index]]
+        label_list_from_view2 = self.video_annotations[1][self.video_frame_sequences[self.current_frame_index]]
+        ids_from_view1 = map(extract_id_from_label, label_list_from_view1)
+        bbox_list_from_view1 = map(extract_bbox_from_label, label_list_from_view1)
+        bbox_list_from_view2 = map(extract_bbox_from_label, label_list_from_view2)
+        
+        distance_matrix = compute_homography_distance(bbox_list_from_view1, bbox_list_from_view2)
 
 
     def add_label(self):
@@ -580,7 +587,6 @@ class MainWindow(QMainWindow):
 
         if item:
             splited_string = [s.strip() for s in item.text().replace('(', '').replace(')', '').split(',')]
-            
             
             if len(splited_string) == 6: #when id is included
                 id = splited_string.pop()
@@ -654,132 +660,6 @@ class MainWindow(QMainWindow):
 
         # Force a repaint
         self.image_label.update()
-        
-
-    def convert_org_lthw(self, bbox0, bbox1, bbox2, bbox3, reverse=False):
-        if not reverse:
-            org_ltwh = self.convert_pixmap_to_source_coordinate(bbox0, bbox1, bbox2, bbox3)
-            return org_ltwh[0], org_ltwh[1], org_ltwh[2], org_ltwh[3]
-        
-        else:
-            pix_ltwh = self.convert_source_to_pixmap_coordinate(bbox0, bbox1, bbox2, bbox3)
-            return pix_ltwh[0], pix_ltwh[1], pix_ltwh[2], pix_ltwh[3]
-
-    def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
-        if not reverse:
-            org_left = bbox0 / scale_x
-            org_top = (bbox1 - vertical_offset) / scale_y
-            org_width = bbox2 / scale_x
-            org_height = bbox3 / scale_y
-
-            center_x = org_left + org_width / 2
-            center_y = org_top + org_height / 2
-
-            yolo_x = center_x / self.img_size_width_height[0]
-            yolo_y = center_y / self.img_size_width_height[1]
-            yolo_w = org_width / self.img_size_width_height[0]
-            yolo_h = org_height / self.img_size_width_height[1]
-
-            return yolo_x, yolo_y, yolo_w, yolo_h
-        else:
-            center_x = bbox0 * self.img_size_width_height[0]
-            center_y = bbox1 * self.img_size_width_height[1]
-            org_width = bbox2 * self.img_size_width_height[0]
-            org_height = bbox3 * self.img_size_width_height[1]
-
-            center_x = center_x - org_width / 2
-            center_y = center_y - org_height / 2
-
-            pix_width = org_width * scale_x
-            pix_height = org_height * scale_y
-            pix_left = center_x * scale_x
-            pix_top = center_y * scale_y + vertical_offset
-
-            return int(pix_left), int(pix_top), int(pix_width), int(pix_height)
-        
-
-    def calculate_scale_and_offset(self, pixmap):
-        # Load the image into a QPixmap
-        image_width = pixmap.width()
-        image_height = pixmap.height()
-
-        # Scale the QPixmap to fit the QLabel
-        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-        scale_x = pixmap.width() / image_width
-        scale_y = pixmap.height() / image_height
-
-        vertical_offset = (self.image_label.height() - pixmap.height()) / 2
-        return scale_x, scale_y, vertical_offset
-    
-
-    def prepend_calculate_scale_and_offset(self):
-        sequence = self.video_frame_sequences[self.current_frame_index]
-        pixmap = self.video_handler_objects[self.current_view].get_video_frame(sequence)
-        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(pixmap)
-        return scale_x, scale_y, vertical_offset
-    
-
-    def convert_source_to_pixmap_coordinate(self, x, y, w, h):
-        x, y, w, h = map(int, (x, y, w, h))
-        scale_x, scale_y, vertical_offset = self.prepend_calculate_scale_and_offset()
-        
-        x = int(x * scale_x)
-        y = int((y * scale_y) + vertical_offset)
-        w = int(w * scale_x)
-        h = int(h * scale_y)
-
-        return [x, y, w, h]
-    
-    def convert_pixmap_to_source_coordinate(self, x, y, w, h):
-        x, y, w, h = map(int, (x, y, w, h))
-        scale_x, scale_y, vertical_offset = self.prepend_calculate_scale_and_offset()
-        
-        x = int(x / scale_x)
-        y = int((y - vertical_offset) / scale_y)
-        w = int(w / scale_x)
-        h = int(h / scale_y)
-        
-        return [x, y, w, h]
-
-#external function
-def xyhw_to_xyxy(coords, reverse=False):
-    if not reverse:
-        coords[2], coords[3] = coords[2] + coords[0], coords[3] + coords[1]
-    else:
-        coords[2], coords[3] = coords[2] - coords[0], coords[3] - coords[1]
-    return coords
-
-
-
-#this function will be called when text edit button is pressed
-def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame_num, image_dir):
-    import cv2
-    # Read the image into a numpy array
-    source_image = cv2.imread(source_path)
-
-    # Reverse the scaling and offset
-    original_bbox = [int(bbox[0] / scale_x),  # left
-                     int((bbox[1] - vertical_offset) / scale_y),  # top
-                     int(bbox[2] / scale_x),  # right
-                     int((bbox[3] - vertical_offset) / scale_y)]  # bottom
-    
-    if original_bbox[0] < 0:
-        original_bbox[0] = 0
-    if original_bbox[1] < 0:
-        original_bbox[1] = 0
-    if original_bbox[2] > source_image.shape[1]:
-        original_bbox[2] = source_image.shape[1]
-    if original_bbox[3] > source_image.shape[0]:
-        original_bbox[3] = source_image.shape[0]
-
-    # Crop the bounding box from the original image os.path.basename(path)
-    bbox_image = source_image[original_bbox[1]:original_bbox[3], original_bbox[0]:original_bbox[2]]
-
-    os.makedirs("saved IDs/ID{}".format(id), exist_ok=True)
-
-    output_path = "saved IDs/ID{}/frame_{}_{}.png".format(id, frame_num, os.path.basename(image_dir))  # replace with your desired output path
-
-    cv2.imwrite(output_path, bbox_image)
 
 
 if __name__ == "__main__":
