@@ -12,7 +12,6 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut
-import adjust_video
 from adjust_video import VideoHandler
 from yolo import run_yolo
 from logger_config import logger
@@ -47,10 +46,12 @@ class MainWindow(QMainWindow):
         self.bbox_list_widget.setFixedWidth(200)
 
         self.text_widget_for_obj = QTextEdit()  # New text widget
+        self.text_widget_for_obj.setPlaceholderText("Enter a object")
         self.text_widget_for_obj.setFixedWidth(200)  # Set a fixed height
         self.text_widget_for_obj.setFixedHeight(25)
 
         self.text_widget_for_id = QTextEdit()  # New text widget
+        self.text_widget_for_id.setPlaceholderText("Enter a id")
         self.text_widget_for_id.setFixedWidth(200)  # Set a fixed height
         self.text_widget_for_id.setFixedHeight(25)
 
