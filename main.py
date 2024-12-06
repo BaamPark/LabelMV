@@ -362,13 +362,13 @@ class MainWindow(QMainWindow):
     #     self.load_video_frame()
 
 
-    def load_video_frame(self, view=0):
+    def load_video_frame(self):
         logger.info(f"<==load_video_frame function is called==>")
         self.image_label.clicked_rect_index = []
         sequence = self.video_frame_sequences[self.current_frame_index]
-        logger.info(f"video_path_for_views[{view}]: {self.video_path_for_views[view]}")
+        logger.info(f"video_path_for_views[{self.current_view}]: {self.video_path_for_views[self.current_view]}")
         # pixmap = adjust_video.get_video_frame(self.video_path_for_views[view], sequence)
-        pixmap = self.video_handler_objects[view].get_video_frame(sequence)
+        pixmap = self.video_handler_objects[self.current_view].get_video_frame(sequence)
         scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
         self.image_label.setPixmap(scaled_pixmap)
         self.frame_indicator.setText(f"Current frame: {sequence} / {self.video_frame_sequences[-1]}, Current view: {self.current_view}")
@@ -428,23 +428,21 @@ class MainWindow(QMainWindow):
 
     def next_frame(self):
         logger.info(f"<==next_frame function is called==>")
-        self.h_slider.setValue(self.current_frame_index)
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (next_frame)")
         if self.current_frame_index < len(self.video_frame_sequences) - 1:
             self.current_frame_index += 1
-            self.load_video_frame(view=self.current_view)
+            self.h_slider.setValue(self.current_frame_index)
             self.export_labels(btn=False, sequence_change=True)
 
 
     def previous_frame(self):
         logger.info(f"<==previous_frame function is called==>")
-        self.h_slider.setValue(self.current_frame_index)
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (previous_frame)")
         if self.current_frame_index > 0:
             self.current_frame_index -= 1
-            self.load_video_frame(view=self.current_view)
+            self.h_slider.setValue(self.current_frame_index)
             self.export_labels(btn=False, sequence_change=True)
 
 
@@ -457,7 +455,7 @@ class MainWindow(QMainWindow):
         else:
             self.current_view += 1
         logger.info(f"changed current_view: {self.current_view} (show_second_view)")
-        self.load_video_frame(view=self.current_view)
+        self.load_video_frame()
         self.export_labels()
 
     def show_prev_view(self):
@@ -467,7 +465,7 @@ class MainWindow(QMainWindow):
             self.current_view = self.number_of_views-1
         else:
             self.current_view -= 1
-        self.load_video_frame(view=self.current_view)
+        self.load_video_frame()
         self.export_labels()
 
     def clear_labels(self):
