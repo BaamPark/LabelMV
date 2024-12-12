@@ -18,8 +18,8 @@ from logger_config import logger
 import pickle
 import numpy as np
 from reID_inference import compute_homography_distance, hungarian_algorithm
-from utils import xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, extract_object_from_label, convert_org_ltwh
-
+from utils import xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, extract_object_from_label, convert_org_ltwh, ltwh_to_xyxy, convert_source_to_pixmap_coordinate
+from homography.homography_wz import get_homography_associator_object
 
 
 class MainWindow(QMainWindow):
@@ -295,6 +295,7 @@ class MainWindow(QMainWindow):
 
                         logger.info(f"annotations: {annotations} at export_labels")
                         bbox, obj, id = annotation.rsplit(', ', 2)
+                        logger.info(f"bbox: {bbox} at export_labels")
                         x, y, w, h = map(int, bbox.strip('()').split(','))
                         pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
                         org_l, org_t, org_w, org_h  = convert_org_ltwh(x, y, w, h, reverse=False, pixmap=pixmap, image_label=self.image_label)
@@ -525,12 +526,13 @@ class MainWindow(QMainWindow):
         frame = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=False)
         _, bbox_list = run_yolo(frame)
         pixmap = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=True)
-        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-        self.image_label.setPixmap(pixmap)
+        # pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
+        # self.image_label.setPixmap(pixmap)
         self.image_label.rectangles = [] 
 
         for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
-            left, top, width, height = self.convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height)
+            
+            left, top, width, height = convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height, pixmap, self.image_label)
 
             bbox_str = str((left, top, width, height))
             bbox_str += ", " + str(box_cls) + ", "
@@ -556,6 +558,7 @@ class MainWindow(QMainWindow):
             logger.info(f"bbox_str: {bbox_str}")
             self.bbox_list_widget.addItem(bbox_str)
 
+        logger.info(f"annotations: {self.video_annotations}")
         pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
         self.image_label.update()
     
@@ -591,13 +594,24 @@ class MainWindow(QMainWindow):
             bbox_list_from_target_view = list(map(extract_bbox_from_label, label_list_from_target_view))
             logger.info(f"bbox_list_from_source_view: {bbox_list_from_source_view}")
             logger.info(f"bbox_list_from_target_view: {bbox_list_from_target_view}")
-            distance_matrix = compute_homography_distance(bbox_list_from_source_view, bbox_list_from_target_view)
-            if distance_matrix.shape[0] != distance_matrix.shape[1]:
-                raise ValueError("The number of bounding box does not match between the two views!")
-            
-            assignments = hungarian_algorithm(distance_matrix)
+
+            associator = get_homography_associator_object()
+            bbox_list_from_source_view_xyxy = list(map(ltwh_to_xyxy, bbox_list_from_source_view))
+            bbox_list_from_target_view_xyxy = list(map(ltwh_to_xyxy, bbox_list_from_target_view))
+            assignments = associator.process_association_above_to_foot1(bbox_list_from_source_view_xyxy, bbox_list_from_target_view_xyxy)
             assignments = [[id_from_source_view, pair[1]] for pair, id_from_source_view in zip(assignments, ids_from_source_view)] #change row_index to real id
-            
+            assignments = sorted(assignments, key=lambda x: x[1])
+            # logger.info(f"assignments_new: {assignments}")
+
+            # obsolete code for assignment
+            # distance_matrix = compute_homography_distance(bbox_list_from_source_view, bbox_list_from_target_view)
+            # if distance_matrix.shape[0] != distance_matrix.shape[1]:
+            #     raise ValueError("The number of bounding box does not match between the two views!")
+            # assignments = hungarian_algorithm(distance_matrix)
+            # assignments = [[id_from_source_view, pair[1]] for pair, id_from_source_view in zip(assignments, ids_from_source_view)] #change row_index to real id
+            # logger.info(f"assignments_old: {assignments}")
+
+            logger.info(f"bbox_list_from_target_view: {bbox_list_from_target_view}")
             new_labels = []
             for (id_source_view, id_target_view), bbox_target_view in zip(assignments, bbox_list_from_target_view):
                 label = f"({bbox_target_view[0]}, {bbox_target_view[1]}, {bbox_target_view[2]}, {bbox_target_view[3]}), person, {id_source_view}"

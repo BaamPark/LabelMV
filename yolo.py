@@ -16,7 +16,7 @@ def run_yolo(source):
             top_left = (x1, y1)
             bottom_right = (x2, y2)
 
-            cv2.rectangle(frame, top_left, bottom_right, color=(0, 255, 0), thickness=2)
+            # cv2.rectangle(frame, top_left, bottom_right, color=(0, 255, 0), thickness=2)
                 
                 #for mot format
             bb_left = x1

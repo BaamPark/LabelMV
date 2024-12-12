@@ -37,6 +37,7 @@ def compute_homography_distance(bbox_list_from_view0: list, bbox_list_from_view1
             distance_matrix[i, j] = np.linalg.norm(point0 - point1)
 
     return distance_matrix
+    
 
 def hungarian_algorithm(distance_matrix):
     row_indices, col_indices = linear_sum_assignment(distance_matrix)

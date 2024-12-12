@@ -46,6 +46,12 @@ def xyhw_to_xyxy(coords, reverse=False):
         coords[2], coords[3] = coords[2] - coords[0], coords[3] - coords[1]
     return coords
 
+def ltwh_to_xyxy(coords, reverse=False):
+    if not reverse:
+        return [coords[0], coords[1], coords[0] + coords[2], coords[1] + coords[3]]
+    else:
+        return [coords[0], coords[1], coords[2] - coords[0], coords[3] - coords[1]]
+
 
 #this function will be called when text edit button is pressed
 def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame_num, image_dir):

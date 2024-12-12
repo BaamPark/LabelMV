@@ -102,6 +102,7 @@ class ClickableImageLabel(QLabel):
 
 
     def mouseReleaseEvent(self, event):
+        logger.info(f"<==mouse release event function called==>")
         if self.drawing:
             self.drawing = False
             rect = {"min_xy":self.start_pos, "max_xy":self.end_pos, 'obj': None, 'id': None, 'focus':False}
@@ -117,9 +118,15 @@ class ClickableImageLabel(QLabel):
             rect['focus'] = False
             if rect['obj'] is None and rect['id'] is None:
                 new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y()))
+            elif rect['obj'] is None and rect['id'] is not None:
+                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", ,{rect['id']}"
+            elif rect['obj'] is not None and rect['id'] is None:
+                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", {rect['obj']}, "
             elif rect['obj'] is not None and rect['id'] is not None:
                 new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", {rect['obj']}, {rect['id']}"
             self.parent.bbox_list_widget.item(self.selected_rectangle_index).setText(new_item_text)
+        
+            logger.info(f"annotations: {self.parent.video_annotations} (mouseReleaseEvent)")
 
     def check_negative_box(self, rect):
         if rect['min_xy'].x() > rect['max_xy'].x() and rect['min_xy'].y() > rect['max_xy'].y():
