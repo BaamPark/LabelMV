@@ -300,8 +300,8 @@ class MainWindow(QMainWindow):
                         pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
                         org_l, org_t, org_w, org_h  = convert_org_ltwh(x, y, w, h, reverse=False, pixmap=pixmap, image_label=self.image_label)
 
-                        if obj not in self.cls_dict:
-                            obj = 'invalid'
+                        # if obj not in self.cls_dict:
+                        #     obj = 'invalid'
                         logger.info(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}")
                         f.write(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}\n")
                     
@@ -537,7 +537,10 @@ class MainWindow(QMainWindow):
             bbox_str = str((left, top, width, height))
             bbox_str += ", " + str(box_cls) + ", "
             existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-            rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls,'id': None, 'focus': False}
+            
+            # in the below line, it was 'id': None but I changed 'id': '' because it crashes when you try remove label
+            rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls,'id': '', 'focus': False}
+            
             self.image_label.rectangles.append(rect)
 
             if bbox_str in existing_items:
@@ -598,18 +601,9 @@ class MainWindow(QMainWindow):
             associator = get_homography_associator_object()
             bbox_list_from_source_view_xyxy = list(map(ltwh_to_xyxy, bbox_list_from_source_view))
             bbox_list_from_target_view_xyxy = list(map(ltwh_to_xyxy, bbox_list_from_target_view))
-            assignments = associator.process_association_above_to_foot1(bbox_list_from_source_view_xyxy, bbox_list_from_target_view_xyxy)
+            assignments = associator.process_association_above_to_foot(bbox_list_from_source_view_xyxy, bbox_list_from_target_view_xyxy, target_view=selected_view)
             assignments = [[id_from_source_view, pair[1]] for pair, id_from_source_view in zip(assignments, ids_from_source_view)] #change row_index to real id
             assignments = sorted(assignments, key=lambda x: x[1])
-            # logger.info(f"assignments_new: {assignments}")
-
-            # obsolete code for assignment
-            # distance_matrix = compute_homography_distance(bbox_list_from_source_view, bbox_list_from_target_view)
-            # if distance_matrix.shape[0] != distance_matrix.shape[1]:
-            #     raise ValueError("The number of bounding box does not match between the two views!")
-            # assignments = hungarian_algorithm(distance_matrix)
-            # assignments = [[id_from_source_view, pair[1]] for pair, id_from_source_view in zip(assignments, ids_from_source_view)] #change row_index to real id
-            # logger.info(f"assignments_old: {assignments}")
 
             logger.info(f"bbox_list_from_target_view: {bbox_list_from_target_view}")
             new_labels = []

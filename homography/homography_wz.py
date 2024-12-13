@@ -387,8 +387,16 @@ class HomographyAssociator:
 
         return image
 
-    def process_association_above_to_foot1(self, src_bboxes, dst_bboxes):
-        associations = self.associate_bboxes_ver2(src_bboxes, dst_bboxes, self.homography_matrix_1)
+    def process_association_above_to_foot(self, src_bboxes, dst_bboxes, target_view):
+        if target_view == 1:
+            associations = self.associate_bboxes_nearest_k_ver2(src_bboxes, dst_bboxes, self.homography_matrix_1)
+        # associations = self.associate_bboxes_nearest_k_ver2(src_bboxes, dst_bboxes, self.homography_matrix_1)
+        elif target_view == 2:
+             associations = self.associate_bboxes_nearest_k_ver2(src_bboxes, dst_bboxes, self.homography_matrix_2)
+        return associations
+    
+    def process_association_above_to_foot2(self, src_bboxes, dst_bboxes):
+        associations = self.associate_bboxes_ver2(src_bboxes, dst_bboxes, self.homography_matrix_2)
         # associations = self.associate_bboxes_nearest_k_ver2(src_bboxes, dst_bboxes, self.homography_matrix_1)
         return associations
     

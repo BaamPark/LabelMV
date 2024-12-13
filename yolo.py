@@ -2,8 +2,10 @@ from ultralytics import YOLO
 import cv2
 
 def run_yolo(source):
-    model = YOLO('provider.pt')
-    results = model(source)
+    model = YOLO("yolov8s-world.pt")
+    model.set_classes(["person"])
+    results = model.predict(source)
+    # results = model(source)
     frame = results[0].orig_img
     bbox_list = []
 
