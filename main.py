@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSlider, QInputDialog
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSlider, QInputDialog, QComboBox
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QBrush, QColor, QPolygon
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit, QInputDialog
@@ -166,6 +166,56 @@ class MainWindow(QMainWindow):
         self.btn_enter_id.clicked.connect(self.enter_id)
         self.btn_enter_id.setFixedWidth(100)
 
+        self.gown_indicator = QLabel("Gown:", self)
+        self.gown_indicator.setAlignment(Qt.AlignCenter)
+        self.gown_dropdown = QComboBox(self)
+        self.gown_dropdown.addItems([
+            "NA", "GC", "GI", "GA"
+        ])  # Add more options as needed
+        gown_layout = QHBoxLayout()
+        gown_layout.addWidget(self.gown_indicator)
+        gown_layout.addWidget(self.gown_dropdown)
+
+        self.mask_indicator = QLabel("Mask:", self)
+        self.mask_indicator.setAlignment(Qt.AlignCenter)
+        self.mask_dropdown = QComboBox(self)
+        self.mask_dropdown.addItems([
+            "NA", "PR", "NC", "RC", "MI", "MA"
+        ])  # Add more options as needed
+        mask_layout = QHBoxLayout()
+        mask_layout.addWidget(self.mask_indicator)
+        mask_layout.addWidget(self.mask_dropdown)
+
+        self.eyewear_indicator = QLabel("Eyewear:", self)
+        self.eyewear_indicator.setAlignment(Qt.AlignCenter)
+        self.eyewear_dropdown = QComboBox(self)
+        self.eyewear_dropdown.addItems([
+            "NA", "PR", "GG", "FC", "FI", "SG", "PG", "EA"
+        ])  # Add more options as needed
+        eyewear_layout = QHBoxLayout()
+        eyewear_layout.addWidget(self.eyewear_indicator)
+        eyewear_layout.addWidget(self.eyewear_dropdown)
+
+        self.GloveL_indicator = QLabel("Glove-L:", self)
+        self.GloveL_indicator.setAlignment(Qt.AlignCenter)
+        self.GloveL_dropdown = QComboBox(self)
+        self.GloveL_dropdown.addItems([
+            "NA", "HC", "HA"
+        ])  # Add more options as needed
+        GloveL_layout = QHBoxLayout()
+        GloveL_layout.addWidget(self.GloveL_indicator)
+        GloveL_layout.addWidget(self.GloveL_dropdown)
+
+        self.GloveR_indicator = QLabel("Glove-R:", self)
+        self.GloveR_indicator.setAlignment(Qt.AlignCenter)
+        self.GloveR_dropdown = QComboBox(self)
+        self.GloveR_dropdown.addItems([
+            "NA", "HC", "HA"
+        ])  # Add more options as needed
+        GloveR_layout = QHBoxLayout()
+        GloveR_layout.addWidget(self.GloveR_indicator)
+        GloveR_layout.addWidget(self.GloveR_dropdown)
+
         # Create a horizontal scrollbar (QSlider)
         self.h_slider = QSlider(Qt.Horizontal)
         self.h_slider.setMinimum(0)
@@ -206,6 +256,11 @@ class MainWindow(QMainWindow):
         text_list_layout = QVBoxLayout()
         text_list_layout.addWidget(self.text_widget_for_obj)
         text_list_layout.addWidget(self.text_widget_for_id)
+        text_list_layout.addLayout(gown_layout)
+        text_list_layout.addLayout(mask_layout)
+        text_list_layout.addLayout(eyewear_layout)
+        text_list_layout.addLayout(GloveL_layout)
+        text_list_layout.addLayout(GloveR_layout)
         text_list_layout.addWidget(self.btn_edit_text)
         text_list_layout.addWidget(self.bbox_list_widget)
         # text_list_layout.addWidget(self.image_list_widget)
