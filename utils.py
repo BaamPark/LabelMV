@@ -21,31 +21,13 @@ def split_label_string(label: str):
     return bbox, obj, id, attr
 
 def extract_object_from_label(label):
-    atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]
-    try:
-        object = int(atomic_label[4])
-    except Exception as e:
-        object = None
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setText("object is missing for current view!")
-        msg.setWindowTitle("Label format warning")
-        msg.exec_()
-
-    return object
+    bbox, obj, id, attr = split_label_string(label)
+    return obj
 
 def extract_id_from_label(label):
-    atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]
-    try:
-        id = int(atomic_label[5])
-    except Exception as e:
-        id = None
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setText("ID is missing for current view!")
-        msg.setWindowTitle("Label format warning")
-        msg.exec_()
-
+    bbox, obj, id, attr = split_label_string(label)
+    if id == '':
+        raise ValueError("current bbox has no id")
     return id
 
 

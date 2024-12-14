@@ -105,25 +105,19 @@ class ClickableImageLabel(QLabel):
         logger.info(f"<==mouse release event function called==>")
         if self.drawing:
             self.drawing = False
-            rect = {"min_xy":self.start_pos, "max_xy":self.end_pos, 'obj': None, 'id': None, 'focus':False}
+            rect = {"min_xy":self.start_pos, "max_xy":self.end_pos, 'obj': '', 'id': '', 'attr': '', 'focus':False}
             rect = self.check_negative_box(rect)
             self.rectangles.append(rect)  # Store the rectangle's coordinates
             self.update()
-            self.parent.bbox_list_widget.addItem(str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())))  # Update the list widget
+            new_item_text = f"({rect['min_xy'].x()}, {rect['min_xy'].y()}, {rect['max_xy'].x() - rect['min_xy'].x()}, {rect['max_xy'].y() - rect['min_xy'].y()}), {rect['obj']}, {rect['id']}, {rect['attr']}"
+            self.parent.bbox_list_widget.addItem(new_item_text)  # Update the list widget
         
         elif self.selected_rectangle_index is not None:
             rect = self.rectangles[self.selected_rectangle_index]
             logger.info(f"rect: {rect} at mouse release event")
             self.update()
             rect['focus'] = False
-            if rect['obj'] is None and rect['id'] is None:
-                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y()))
-            elif rect['obj'] is None and rect['id'] is not None:
-                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", ,{rect['id']}"
-            elif rect['obj'] is not None and rect['id'] is None:
-                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", {rect['obj']}, "
-            elif rect['obj'] is not None and rect['id'] is not None:
-                new_item_text = str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())) + f", {rect['obj']}, {rect['id']}"
+            new_item_text = f"({rect['min_xy'].x()}, {rect['min_xy'].y()}, {rect['max_xy'].x() - rect['min_xy'].x()}, {rect['max_xy'].y() - rect['min_xy'].y()}), {rect['obj']}, {rect['id']}, {rect['attr']}"
             self.parent.bbox_list_widget.item(self.selected_rectangle_index).setText(new_item_text)
         
             logger.info(f"annotations: {self.parent.video_annotations} (mouseReleaseEvent)")
@@ -177,7 +171,7 @@ class ClickableImageLabel(QLabel):
 
             painter.setPen(pen)
             painter.setBrush(Qt.NoBrush)
-            if rect['obj'] is not None:  # Check if this rectangle has an ID
+            if rect['obj'] != '':  # Check if this rectangle has an ID
                 # Calculate center x coordinate of the bounding box
                 center_x = top_left.x() + ((bottom_right.x() - top_left.x()) / 2)
                 # Draw the text at the top center of the bounding box

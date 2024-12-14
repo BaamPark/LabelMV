@@ -75,25 +75,25 @@ class MainWindow(QMainWindow):
         # self.btn_browse.clicked.connect(self.browse_folder)
         self.btn_browse.setFixedWidth(100)
 
-        self.btn_next = QPushButton("Next Frame")
+        self.btn_next = QPushButton("Next Frame (d)")
         self.btn_next.clicked.connect(self.next_frame)
         self.btn_next.setFixedWidth(100)
         next_shorcut = QShortcut(QKeySequence('d'), self)
         next_shorcut.activated.connect(self.next_frame)
 
-        self.btn_prev = QPushButton("Previous Frame")
+        self.btn_prev = QPushButton("Previous Frame (a)")
         self.btn_prev.clicked.connect(self.previous_frame)
         self.btn_prev.setFixedWidth(100)
         prev_shorcut = QShortcut(QKeySequence('a'), self)
         prev_shorcut.activated.connect(self.previous_frame)
 
-        self.btn_next_view = QPushButton("Next View")
+        self.btn_next_view = QPushButton("Next View (w)")
         self.btn_next_view.clicked.connect(self.show_next_view)
         self.btn_next_view.setFixedWidth(100)
         next_view_shorcut = QShortcut(QKeySequence('w'), self)
         next_view_shorcut.activated.connect(self.show_next_view)
 
-        self.btn_prev_view = QPushButton("Prev View")
+        self.btn_prev_view = QPushButton("Prev View (s)")
         self.btn_prev_view.clicked.connect(self.show_prev_view)
         self.btn_prev_view.setFixedWidth(100)
         prev_view_shorcut = QShortcut(QKeySequence('s'), self)
@@ -305,23 +305,32 @@ class MainWindow(QMainWindow):
         self.highlight_bbox(item.text())
 
     
-    def highlight_bbox(self, bbox):
-        splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
-        if len(splited_string) > 4:
-            splited_string = splited_string[:4]
-        left, top, width, height = map(int, splited_string)
-        vertices = [left, top, width, height]
-        vertices = xyhw_to_xyxy(vertices)
-        right, bottom = vertices[2], vertices[3]
+    def highlight_bbox(self, label):
+        try:
+            bbox, id, obj, attr = split_label_string(label)
+            left, top, width, height = map(int, bbox)
+            vertices = [left, top, width, height]
+            vertices = xyhw_to_xyxy(vertices)
+            right, bottom = vertices[2], vertices[3]
 
-        for i, rect in enumerate(self.image_label.rectangles):
-                if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
+            for i, rect in enumerate(self.image_label.rectangles):
+                    if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
 
-                    self.image_label.rectangles[i]['focus'] = True
-                    self.image_label.clicked_rect_index.append(i)
-                    break
+                        self.image_label.rectangles[i]['focus'] = True
+                        self.image_label.clicked_rect_index.append(i)
+                        break
 
-        self.image_label.update()
+            self.image_label.update()
+
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
+            msg.setWindowTitle("Warning: hilight bbox")
+            msg.exec_()
+    
 
 
     def export_labels(self, btn=False, sequence_change=False):
@@ -355,8 +364,8 @@ class MainWindow(QMainWindow):
                 logger.info(f"Exception: {error_details}")
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Warning)
-                msg.setText(f"An error occurred:\n{str(e)}\n\nDetails:\n{error_details}")
-                msg.setWindowTitle("Export Warning")
+                msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
+                msg.setWindowTitle("Warning: export label")
                 msg.exec_()
     
     
@@ -428,16 +437,11 @@ class MainWindow(QMainWindow):
             try: 
                 for label in self.video_annotations[self.current_view][sequence]:
                     self.bbox_list_widget.addItem(label)
-                    splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
                     bbox, obj, id, attr = split_label_string(label)
-                    logger.info(f"splited_string: {splited_string} (load_video_frame)")
-                    if len(splited_string) == 4:
-                        x, y, w, h = map(int, splited_string)
-                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'id': None, 'attr': None, 'focus': False}
-                    else:
-                        x, y, w, h = map(int, bbox)
-                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': obj, 'id': id, 'attr': attr, 'focus': False}
-                        logger.info(f"rect: {rect} (load_video_frame)")
+                    logger.info(f"bbox: {bbox}, obj: {obj}, id: {id}, attr: {attr} (load_video_frame)")
+                    x, y, w, h = map(int, bbox)
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': obj, 'id': id, 'attr': attr, 'focus': False}
+                    logger.info(f"rect: {rect} (load_video_frame)")
                     self.image_label.rectangles.append(rect)
            
             except Exception as e:
@@ -446,7 +450,7 @@ class MainWindow(QMainWindow):
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Warning)
                 msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
-                msg.setWindowTitle("Loading frame Warning")
+                msg.setWindowTitle("Warning: load video frame")
                 msg.exec_()
                 
         else:
@@ -457,54 +461,81 @@ class MainWindow(QMainWindow):
         logger.info(f"<==browse_video function is called==>")
         self.video_path_for_views = []
         video_frame_sequences_for_views = []
-        for i in range(self.number_of_views):
-            self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
-            self.video_handler_objects.append(VideoHandler(self.video_path_for_views[i]))
-        
-        fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
-        if ok:
-            self.fps = fps
-            self.img_size_width_height = self.video_handler_objects[0].get_video_dimensions()
-            
+        try:
             for i in range(self.number_of_views):
-                video_frame_sequences_for_views.append(self.video_handler_objects[i].get_frame_indices(fps))
-                # video_frame_sequences_for_views.append(adjust_video.get_frame_indices(self.video_path_for_views[i], self.fps))
-                logger.info(f"video_frame_sequences_view{i}: {video_frame_sequences_for_views[i]} (browse_video)")
+                self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
+                self.video_handler_objects.append(VideoHandler(self.video_path_for_views[i]))
+            
+            fps, ok = QInputDialog.getInt(self, "Set FPS", "Enter desired FPS:", min=1, max=60)
+            if ok:
+                self.fps = fps
+                self.img_size_width_height = self.video_handler_objects[0].get_video_dimensions()
+                
+                for i in range(self.number_of_views):
+                    video_frame_sequences_for_views.append(self.video_handler_objects[i].get_frame_indices(fps))
+                    # video_frame_sequences_for_views.append(adjust_video.get_frame_indices(self.video_path_for_views[i], self.fps))
+                    logger.info(f"video_frame_sequences_view{i}: {video_frame_sequences_for_views[i]} (browse_video)")
 
-            if len(set(map(len, video_frame_sequences_for_views))) != 1:
-                logger.info(f'Video frame sequences have different lengths')
+                if len(set(map(len, video_frame_sequences_for_views))) != 1:
+                    logger.info(f'Video frame sequences have different lengths')
 
-            self.video_frame_sequences = min(video_frame_sequences_for_views, key=len)
+                self.video_frame_sequences = min(video_frame_sequences_for_views, key=len)
 
-            self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
-            self.current_frame_index = 0
-            self.pixmap_ref = self.video_handler_objects[self.current_view].get_video_frame(0)
-            self.load_video_frame()
-        else:
-            QMessageBox.warning(self, "FPS Not Set", "FPS was not set. Please try again.")
+                self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
+                self.current_frame_index = 0
+                self.pixmap_ref = self.video_handler_objects[self.current_view].get_video_frame(0)
+                self.load_video_frame()
+            else:
+                QMessageBox.warning(self, "FPS Not Set", "FPS was not set. Please try again.")
 
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: {str(e)}")
+            msg.setWindowTitle("Warning: browse video")
+            msg.exec_()
         
 
     def next_frame(self):
         logger.info(f"<==next_frame function is called==>")
-        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        logger.info(f"annotations: {self.video_annotations} (next_frame)")
-        if self.current_frame_index < len(self.video_frame_sequences) - 1:
-            self.export_labels(btn=False, sequence_change=True)
-            self.current_frame_index += 1
-            self.h_slider.setValue(self.current_frame_index)
-            
+        try:
+            self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+            logger.info(f"annotations: {self.video_annotations} (next_frame)")
+            if self.current_frame_index < len(self.video_frame_sequences) - 1:
+                self.export_labels(btn=False, sequence_change=True)
+                self.current_frame_index += 1
+                self.h_slider.setValue(self.current_frame_index)
+
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: {str(e)}")
+            msg.setWindowTitle("Warning: next frame")
+            msg.exec_()
 
 
     def previous_frame(self):
         logger.info(f"<==previous_frame function is called==>")
-        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-        logger.info(f"annotations: {self.video_annotations} (previous_frame)")
-        if self.current_frame_index > 0:
-            self.export_labels(btn=False, sequence_change=True)
-            self.current_frame_index -= 1
-            self.h_slider.setValue(self.current_frame_index)
-            
+        try:
+            self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+            logger.info(f"annotations: {self.video_annotations} (previous_frame)")
+            if self.current_frame_index > 0:
+                self.export_labels(btn=False, sequence_change=True)
+                self.current_frame_index -= 1
+                self.h_slider.setValue(self.current_frame_index)
+        
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: {str(e)}")
+            msg.setWindowTitle("Warning: previous frame")
+            msg.exec_()
 
 
     def show_next_view(self):
@@ -518,6 +549,7 @@ class MainWindow(QMainWindow):
         logger.info(f"changed current_view: {self.current_view} (show_second_view)")
         self.load_video_frame()
         self.export_labels()
+
 
     def show_prev_view(self):
         logger.info(f"<==show_prev_view function is called==>")
@@ -537,47 +569,60 @@ class MainWindow(QMainWindow):
 
 
     def load_prev_labels(self):
-        logger.info(f"<==load_prev_labels function is called==>")
-        prev_sequence = self.video_frame_sequences[self.current_frame_index -1]
-        if prev_sequence in self.video_annotations[self.current_view]:
-            # self.bbox_list_widget.clear()
-            for bbox in self.video_annotations[self.current_view][prev_sequence]:
-                self.bbox_list_widget.addItem(bbox)
-                splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
-                if len(splited_string) == 4:
-                    x, y, w, h = map(int, splited_string)
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'id': None,'focus': False}
-                else:
-                    x, y, w, h = map(int, splited_string[:-2])
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-2], 'id': splited_string[-1], 'focus': False}
-                self.image_label.rectangles.append(rect)
-            self.image_label.update()
+        try:
+            logger.info(f"<==load_prev_labels function is called==>")
+            prev_sequence = self.video_frame_sequences[self.current_frame_index -1]
+            if prev_sequence in self.video_annotations[self.current_view]:
+                # self.bbox_list_widget.clear()
+                for label in self.video_annotations[self.current_view][prev_sequence]:
+                    self.bbox_list_widget.addItem(label)
+                    bbox, obj, id, attr = split_label_string(label)
+                    x, y, w, h = map(int, bbox)
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': obj, 'id': id, 'attr': attr, 'focus': False}
+                    self.image_label.rectangles.append(rect)
+                self.image_label.update()
 
-        # else:
-        #     self.bbox_list_widget.clear()
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: \n{str(e)}\n\nDetails: {error_details}")
+            msg.setWindowTitle("Warning: load prebox")
+            msg.exec_()
 
     def import_label(self):
-        logger.info(f"<==import_label function is called==>")
-        options = QFileDialog.Options()
-        options |= QFileDialog.ReadOnly
-        file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
-        if file_name:
-            with open(file_name, 'r') as f:
-                self.video_annotations.clear()
-                self.video_annotations = {0: {}, 1: {}, 2: {}}
-                for line in f:
-                    view, frame, id, lbl = line.split(', ')
-                    obj, x, y, w, h = lbl.split(' ')
-                    
-                    view, frame = int(view), int(frame)
-                    left, top, width, height= convert_org_ltwh(int(x), int(y), int(w), int(h), reverse=True, pixmap=self.pixmap_ref, image_label=self.image_label)
+        try:
+            logger.info(f"<==import_label function is called==>")
+            options = QFileDialog.Options()
+            options |= QFileDialog.ReadOnly
+            file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
+            if file_name:
+                with open(file_name, 'r') as f:
+                    self.video_annotations.clear()
+                    self.video_annotations = {i: {} for i in range(self.number_of_views)}
+                    for line in f:
+                        view, frame, id, obj, attr, bbox = line.split(', ')
+                        x, y, w, h = bbox.split(' ')
+                        
+                        view, frame = int(view), int(frame)
+                        left, top, width, height= convert_org_ltwh(int(x), int(y), int(w), int(h), reverse=True, pixmap=self.pixmap_ref, image_label=self.image_label)
 
-                    if frame not in self.video_annotations[view]:
-                        self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}"]
-                    else:
-                        self.video_annotations[view][frame].append(f"({left}, {top}, {width}, {height}), {obj}, {id}")
-            
-            self.load_video_frame()
+                        if frame not in self.video_annotations[view]:
+                            self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}, {attr}"]
+                        else:
+                            self.video_annotations[view][frame].append(f"({left}, {top}, {width}, {height}), {obj}, {id}, {attr}")
+                
+                self.load_video_frame()
+
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: \n{str(e)}")
+            msg.setWindowTitle("Warning: import label")
+            msg.exec_()
 
 
     def run_detector(self):
@@ -585,41 +630,44 @@ class MainWindow(QMainWindow):
         frame = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=False)
         _, bbox_list = run_yolo(frame)
         self.image_label.rectangles = [] 
+        try:
+            for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
+                
+                left, top, width, height = convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height, self.pixmap_ref, self.image_label)
+                id, attr = '', ''
+                label = f"({left}, {top}, {width}, {height}), {box_cls}, {id}, {attr}"
+                existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
+                rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls,'id': id, 'attr': attr, 'focus': False}
+                
+                self.image_label.rectangles.append(rect)
 
-        for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
-            
-            left, top, width, height = convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height, self.pixmap_ref, self.image_label)
+                if label in existing_items:
+                    continue  # Skip this bounding box
+                
+                bbox = f"({left}, {top}, {width}, {height})"
 
-            bbox_str = str((left, top, width, height))
-            bbox_str += ", " + str(box_cls) + ", "
-            existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-            
-            # in the below line, it was 'id': None but I changed 'id': '' because it crashes when you try remove label
-            rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'obj': box_cls,'id': '', 'focus': False}
-            
-            self.image_label.rectangles.append(rect)
+                found = False
+                for items in existing_items:
+                    if bbox in items:
+                        found = True
+                        break
+                if found:
+                    continue
 
-            if bbox_str in existing_items:
-                continue  # Skip this bounding box
+                logger.info(f"generated label: {label}")
+                self.bbox_list_widget.addItem(label)
 
-            result_string = [s.strip() for s in bbox_str.replace('(', '').replace(')', '').split(',')] #'(left, top, width, height), ID' => '(left, top, width, height)'
-            
-            bbox_short = "({}, {}, {}, {})".format(result_string[0], result_string[1], result_string[2], result_string[3])
-            
-            found = False
-            for items in existing_items:
-                if bbox_short in items:
-                    found = True
-                    break
-            if found:
-                continue
+            logger.info(f"annotations: {self.video_annotations}")
+            self.image_label.update()
 
-            logger.info(f"bbox_str: {bbox_str}")
-            self.bbox_list_widget.addItem(bbox_str)
-
-        logger.info(f"annotations: {self.video_annotations}")
-        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-        self.image_label.update()
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: \n{str(e)}\n\nDetails: {error_details}")
+            msg.setWindowTitle("Warning: run detector")
+            msg.exec_()
     
     def associate_id(self):
         logger.info(f"<==associate_id function is called==>")
@@ -646,9 +694,6 @@ class MainWindow(QMainWindow):
             logger.info(f"source view annotations:{self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]]}")
             logger.info(f"target view annotations:{self.video_annotations[selected_view][self.video_frame_sequences[self.current_frame_index]]}")
             ids_from_source_view = list(map(extract_id_from_label, label_list_from_source_view))
-            if None in ids_from_source_view:
-                raise ValueError("Not all bounding boxes have ids!")
-
             bbox_list_from_source_view = list(map(extract_bbox_from_label, label_list_from_source_view))
             bbox_list_from_target_view = list(map(extract_bbox_from_label, label_list_from_target_view))
             logger.info(f"bbox_list_from_source_view: {bbox_list_from_source_view}")
@@ -664,7 +709,8 @@ class MainWindow(QMainWindow):
             logger.info(f"bbox_list_from_target_view: {bbox_list_from_target_view}")
             new_labels = []
             for (id_source_view, id_target_view), bbox_target_view in zip(assignments, bbox_list_from_target_view):
-                label = f"({bbox_target_view[0]}, {bbox_target_view[1]}, {bbox_target_view[2]}, {bbox_target_view[3]}), person, {id_source_view}"
+                attr = ''
+                label = f"({bbox_target_view[0]}, {bbox_target_view[1]}, {bbox_target_view[2]}, {bbox_target_view[3]}), person, {id_source_view}, {attr}"
                 new_labels.append(label)
 
             self.video_annotations[selected_view][self.video_frame_sequences[self.current_frame_index]] = new_labels
@@ -683,11 +729,12 @@ class MainWindow(QMainWindow):
             msg.exec_()
 
         except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
-            msg.setText(str(e))
-            logger.info(f"Exception: {e}")
-            msg.setWindowTitle("Association Warning")
+            msg.setText(f"Error: Not all bboxes have IDs in the source view.")
+            msg.setWindowTitle("Warning: associate id")
             msg.exec_()
 
 
@@ -708,50 +755,38 @@ class MainWindow(QMainWindow):
 
     def remove_label(self):
         logger.info(f"<==remove_label function is called==>")
-        if self.image_label.clicked_rect_index:
-            self.image_label.clicked_rect_index.pop()
+        try:
+            if self.image_label.clicked_rect_index:
+                self.image_label.clicked_rect_index.pop()
 
-        item = self.bbox_list_widget.currentItem()
+            item = self.bbox_list_widget.currentItem()
+            if item:
+                # splited_string = [s.strip() for s in item.text().replace('(', '').replace(')', '').split(',')]
+                bbox, obj, id, attr = split_label_string(item.text())
 
-        if item:
-            splited_string = [s.strip() for s in item.text().replace('(', '').replace(')', '').split(',')]
-            
-            if len(splited_string) == 6: #when id is included
-                id = splited_string.pop()
-                obj = splited_string.pop()
+                bbox = list(map(int, bbox))
+                coords = xyhw_to_xyxy(bbox)
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':obj, 'id': id, 'attr': attr, 'focus':False}
                 
-                coords = [int(part.strip()) for part in splited_string]
-                coords = xyhw_to_xyxy(coords)
-                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':obj, 'id': id, 'focus':False}
+                self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
+                logger.info(f'trying to remove rect: {rect} from rectangle list: {self.image_label.rectangles}')
 
-            elif len(splited_string) == 5:
-                id_or_oibj = splited_string.pop()
-                is_id = self.is_convertible_to_int(id_or_oibj)
-                coords = [int(part.strip()) for part in splited_string]
-                coords = xyhw_to_xyxy(coords)
-                if is_id:
-                    rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':None, 'id': id, 'focus':False}
-                else:
-                    rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':obj, 'id': None, 'focus':False}
-            
-            else:
-                coords = [int(part.strip()) for part in splited_string]
-                coords = xyhw_to_xyxy(coords)
-                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'obj':None, 'id': None, 'focus':False}
-            
-            self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
-            
-            logger.info(f'trying to remove rect: {rect} from rectangle list: {self.image_label.rectangles}')
+                if rect in self.image_label.rectangles:
+                    self.image_label.rectangles.remove(rect)
+                else: #when trying to remove focused bbox, set 'focus' value to True
+                    rect['focus'] = True
+                    self.image_label.rectangles.remove(rect)
 
-            if rect in self.image_label.rectangles:
+                self.image_label.repaint()
 
-                self.image_label.rectangles.remove(rect)
-            else: #when trying to remove focused bbox, set 'focus' value to True
-                rect['focus'] = True
-                self.image_label.rectangles.remove(rect)
-
-            # Repaint the QLabel
-            self.image_label.repaint()
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
+            msg.setWindowTitle("Warning: remove label")
+            msg.exec_()
 
 
     def edit_text(self):
@@ -767,34 +802,42 @@ class MainWindow(QMainWindow):
 
         current_item = self.bbox_list_widget.currentItem()   
 
-        # If an item is selected, update its text
-        if current_item is not None:
-            current_text = current_item.text()
-            splited_string = current_text.replace('(', '').replace(')', '').split(',')
-            if len(splited_string) > 4:
-                splited_string = splited_string[:4]
-                current_text = "({},{},{},{})".format(splited_string[0], splited_string[1], splited_string[2], splited_string[3])
+        try:
+            # If an item is selected, update its text
+            if current_item is not None:
+                current_text = current_item.text()
+                bbox, obj, id, attr = split_label_string(current_text)
 
-            # current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)
-            current_item.setText(f'{current_text}, {new_obj}, {new_id}, {gown_attr}-{mask_attr}-{eyewear_attr}-{gloveL_attr}-{gloveR_attr}')
-            left, top, width, height = map(int, splited_string)
-            vertices = [left, top, width, height]
-            vertices = xyhw_to_xyxy(vertices)
-            right, bottom = vertices[2], vertices[3]
+                # current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)
+                current_item.setText(f'({bbox[0]}, {bbox[1]}, {bbox[2]}, {bbox[3]}), {new_obj}, {new_id}, {gown_attr}-{mask_attr}-{eyewear_attr}-{gloveL_attr}-{gloveR_attr}')
+                bbox = list(map(int, bbox))
+                vertices = xyhw_to_xyxy(bbox)
+                left, top = vertices[0], vertices[1]
+                right, bottom = vertices[2], vertices[3]
 
-            # Update the rectangles list with the bounding box ID
-            # it has use for loop because whenever you update iamge_label, the paintEvent work same jobs again.
-            for i, rect in enumerate(self.image_label.rectangles):
-                if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
+                # Update the rectangles list with the bounding box ID
+                # it has use for loop because whenever you update iamge_label, the paintEvent work same jobs again.
+                for i, rect in enumerate(self.image_label.rectangles):
+                    if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
 
-                    logger.info('trying to label bbox class: {}'.format(new_obj))
-                    logger.info('trying to label bbox id: {}'.format(new_id))
-                    self.image_label.rectangles[i]['obj'] = new_obj
-                    self.image_label.rectangles[i]['id'] = new_id
-                    break
+                        logger.info('trying to label bbox class: {}'.format(new_obj))
+                        logger.info('trying to label bbox id: {}'.format(new_id))
+                        self.image_label.rectangles[i]['obj'] = new_obj
+                        self.image_label.rectangles[i]['id'] = new_id
+                        self.image_label.rectangles[i]['attr'] = f"{gown_attr}-{mask_attr}-{eyewear_attr}-{gloveL_attr}-{gloveR_attr}"
+                        break
 
-        # Force a repaint
-        self.image_label.update()
+            # Force a repaint
+            self.image_label.update()
+
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
+            msg.setWindowTitle("Warning: update box")
+            msg.exec_()
 
 
 if __name__ == "__main__":
