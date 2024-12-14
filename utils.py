@@ -4,11 +4,21 @@ from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import Qt
 
 
+# def 
+
 def extract_bbox_from_label(label):
     atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]
     bbox = atomic_label[:4]
     bbox = map(int, bbox)
     return list(bbox)
+
+def split_label_string(label: str):
+    split_list = label.replace('(', '').replace(')', '').split(', ')
+    bbox = split_list[:4]
+    obj = split_list[4]
+    id = split_list[5]
+    attr = split_list[6]
+    return bbox, obj, id, attr
 
 def extract_object_from_label(label):
     atomic_label = [s.strip() for s in label.replace('(', '').replace(')', '').split(',')]

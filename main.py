@@ -18,9 +18,9 @@ from logger_config import logger
 import pickle
 import numpy as np
 from reID_inference import compute_homography_distance, hungarian_algorithm
-from utils import xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, extract_object_from_label, convert_org_ltwh, ltwh_to_xyxy, convert_source_to_pixmap_coordinate
+from utils import xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, extract_object_from_label, convert_org_ltwh, ltwh_to_xyxy, convert_source_to_pixmap_coordinate, split_label_string
 from homography.homography_wz import get_homography_associator_object
-
+import traceback
 
 class MainWindow(QMainWindow):
     def __init__(self, number_of_views, resolution, parent=None): #conflict
@@ -338,36 +338,26 @@ class MainWindow(QMainWindow):
             filename = 'annotations.txt'
 
         with open(filename, 'w') as f:
-            for view in self.video_annotations:
-                for frame_num, annotations in self.video_annotations[view].items():
-                    find_misformat = False
-                    for i, annotation in enumerate(annotations):
-                        splited_string = [s.strip() for s in annotation.replace('(', '').replace(')', '').split(',')]
-                        if len(splited_string) < 5: #when id is not included
-                            if sequence_change:
-                                find_misformat = True
-                            continue
+            try:
+                for view in self.video_annotations:
+                    for frame_num, annotations in self.video_annotations[view].items():
+                        for i, annotation in enumerate(annotations):
+                            bbox, obj, id, attr = split_label_string(annotation)
+                            logger.info(f"bbox: {bbox} at export_labels")
+                            x, y, w, h = map(int, bbox)
+                            org_l, org_t, org_w, org_h  = convert_org_ltwh(x, y, w, h, reverse=False, pixmap=self.pixmap_ref, image_label=self.image_label)
 
-                        logger.info(f"annotations: {annotations} at export_labels")
-                        bbox, obj, id = annotation.rsplit(', ', 2)
-                        logger.info(f"bbox: {bbox} at export_labels")
-                        x, y, w, h = map(int, bbox.strip('()').split(','))
-                        pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
-                        org_l, org_t, org_w, org_h  = convert_org_ltwh(x, y, w, h, reverse=False, pixmap=pixmap, image_label=self.image_label)
+                            f.write(f"{view}, {frame_num}, {id}, {obj}, {attr}, {org_l} {org_t} {org_w} {org_h}\n")
 
-                        # if obj not in self.cls_dict:
-                        #     obj = 'invalid'
-                        logger.info(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}")
-                        f.write(f"{view}, {frame_num}, {id}, {obj} {org_l} {org_t} {org_w} {org_h}\n")
-                    
-                    if find_misformat:
-                        msg = QMessageBox()
-                        msg.setIcon(QMessageBox.Warning)
-                        msg.setText("Object or ID missing!")
-                        msg.setInformativeText(f"The Object is missing at view{view}, frame {frame_num}.")
-                        msg.setWindowTitle("Export Warning")
-                        msg.exec_()
-                        continue
+            
+            except Exception as e:
+                error_details = traceback.format_exc()
+                logger.info(f"Exception: {error_details}")
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText(f"An error occurred:\n{str(e)}\n\nDetails:\n{error_details}")
+                msg.setWindowTitle("Export Warning")
+                msg.exec_()
     
     
     def enter_id(self):
@@ -435,19 +425,30 @@ class MainWindow(QMainWindow):
         logger.info(f"sequence: {sequence} (load_video_frame)")
         if sequence in self.video_annotations[self.current_view]:
             self.bbox_list_widget.clear()
-            for bbox in self.video_annotations[self.current_view][sequence]:
-                self.bbox_list_widget.addItem(bbox)
-                splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
-                logger.info(f"splited_string: {splited_string} (load_video_frame)")
-                if len(splited_string) == 4:
-                    x, y, w, h = map(int, splited_string)
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'id': None,'focus': False}
-                else:
-                    x, y, w, h = map(int, splited_string[:-2])
-                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': splited_string[-2], 'id': splited_string[-1], 'focus': False}
-                    logger.info(f"rect: {rect} (load_video_frame)")
-                self.image_label.rectangles.append(rect)
-
+            try: 
+                for label in self.video_annotations[self.current_view][sequence]:
+                    self.bbox_list_widget.addItem(label)
+                    splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
+                    bbox, obj, id, attr = split_label_string(label)
+                    logger.info(f"splited_string: {splited_string} (load_video_frame)")
+                    if len(splited_string) == 4:
+                        x, y, w, h = map(int, splited_string)
+                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': None, 'id': None, 'attr': None, 'focus': False}
+                    else:
+                        x, y, w, h = map(int, bbox)
+                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'obj': obj, 'id': id, 'attr': attr, 'focus': False}
+                        logger.info(f"rect: {rect} (load_video_frame)")
+                    self.image_label.rectangles.append(rect)
+           
+            except Exception as e:
+                error_details = traceback.format_exc()
+                logger.info(f"Exception: {error_details}")
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
+                msg.setWindowTitle("Loading frame Warning")
+                msg.exec_()
+                
         else:
             self.bbox_list_widget.clear()
 
@@ -477,19 +478,22 @@ class MainWindow(QMainWindow):
 
             self.h_slider.setMaximum(len(self.video_frame_sequences) - 1)
             self.current_frame_index = 0
+            self.pixmap_ref = self.video_handler_objects[self.current_view].get_video_frame(0)
             self.load_video_frame()
         else:
             QMessageBox.warning(self, "FPS Not Set", "FPS was not set. Please try again.")
 
+        
 
     def next_frame(self):
         logger.info(f"<==next_frame function is called==>")
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (next_frame)")
         if self.current_frame_index < len(self.video_frame_sequences) - 1:
+            self.export_labels(btn=False, sequence_change=True)
             self.current_frame_index += 1
             self.h_slider.setValue(self.current_frame_index)
-            self.export_labels(btn=False, sequence_change=True)
+            
 
 
     def previous_frame(self):
@@ -497,9 +501,10 @@ class MainWindow(QMainWindow):
         self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         logger.info(f"annotations: {self.video_annotations} (previous_frame)")
         if self.current_frame_index > 0:
+            self.export_labels(btn=False, sequence_change=True)
             self.current_frame_index -= 1
             self.h_slider.setValue(self.current_frame_index)
-            self.export_labels(btn=False, sequence_change=True)
+            
 
 
     def show_next_view(self):
@@ -565,8 +570,7 @@ class MainWindow(QMainWindow):
                     obj, x, y, w, h = lbl.split(' ')
                     
                     view, frame = int(view), int(frame)
-                    pixmap = self.video_handler_objects[self.current_view].get_video_frame(0)
-                    left, top, width, height= convert_org_ltwh(int(x), int(y), int(w), int(h), reverse=True, pixmap=pixmap, image_label=self.image_label)
+                    left, top, width, height= convert_org_ltwh(int(x), int(y), int(w), int(h), reverse=True, pixmap=self.pixmap_ref, image_label=self.image_label)
 
                     if frame not in self.video_annotations[view]:
                         self.video_annotations[view][frame] = [f"({left}, {top}, {width}, {height}), {obj}, {id}"]
@@ -580,14 +584,11 @@ class MainWindow(QMainWindow):
         logger.info(f"<==run_detector function is called==>")
         frame = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=False)
         _, bbox_list = run_yolo(frame)
-        pixmap = self.video_handler_objects[self.current_view].get_video_frame(self.video_frame_sequences[self.current_frame_index], pixmap=True)
-        # pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-        # self.image_label.setPixmap(pixmap)
         self.image_label.rectangles = [] 
 
         for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
             
-            left, top, width, height = convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height, pixmap, self.image_label)
+            left, top, width, height = convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height, self.pixmap_ref, self.image_label)
 
             bbox_str = str((left, top, width, height))
             bbox_str += ", " + str(box_cls) + ", "
@@ -757,6 +758,13 @@ class MainWindow(QMainWindow):
         logger.info(f"<==edit_text function is called==>")
         new_obj = self.text_widget_for_obj.toPlainText()
         new_id = self.text_widget_for_id.toPlainText()
+        gown_attr = self.gown_dropdown.currentText()
+        mask_attr = self.mask_dropdown.currentText()
+        eyewear_attr = self.eyewear_dropdown.currentText()
+        gloveL_attr = self.GloveL_dropdown.currentText()
+        gloveR_attr = self.GloveR_dropdown.currentText()
+        logger.info(f"update new_obj: {new_obj}, new_id: {new_id}, gown_attr: {gown_attr}, mask_attr: {mask_attr}, eyewear_attr: {eyewear_attr}, gloveL_attr: {gloveL_attr}, gloveR_attr: {gloveR_attr}")
+
         current_item = self.bbox_list_widget.currentItem()   
 
         # If an item is selected, update its text
@@ -767,8 +775,8 @@ class MainWindow(QMainWindow):
                 splited_string = splited_string[:4]
                 current_text = "({},{},{},{})".format(splited_string[0], splited_string[1], splited_string[2], splited_string[3])
 
-            current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)  # append the new text after a comma for separation
-            
+            # current_item.setText(current_text + ', ' + new_obj + ', ' + new_id)
+            current_item.setText(f'{current_text}, {new_obj}, {new_id}, {gown_attr}-{mask_attr}-{eyewear_attr}-{gloveL_attr}-{gloveR_attr}')
             left, top, width, height = map(int, splited_string)
             vertices = [left, top, width, height]
             vertices = xyhw_to_xyxy(vertices)
