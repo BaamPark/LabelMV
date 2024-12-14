@@ -171,7 +171,7 @@ class ClickableImageLabel(QLabel):
 
             painter.setPen(pen)
             painter.setBrush(Qt.NoBrush)
-            if rect['obj'] != '':  # Check if this rectangle has an ID
+            if rect['id'] != '':  # Check if this rectangle has an ID
                 # Calculate center x coordinate of the bounding box
                 center_x = top_left.x() + ((bottom_right.x() - top_left.x()) / 2)
                 # Draw the text at the top center of the bounding box

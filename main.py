@@ -27,8 +27,6 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.video_handler_objects = []
         self.number_of_views = int(number_of_views)
-        self.cls_dict = {'person':0, 'invalid':1}
-        self.reverse_cls_dict = {0:'person', 1:'invalid'}
         self.video_annotations = {i: {} for i in range(self.number_of_views)} #! to be remained
         logger.info(f"video_annotations: {self.video_annotations}")
         #{view0: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, view1: {frame0: [bbox0, bbox1, ...], frame1: [bbox0, bbox1, ...], ...}, ...}
@@ -36,20 +34,20 @@ class MainWindow(QMainWindow):
         self.current_view = 0 #! to be remained
         self.current_frame_index = 0 #! to be remained
 
-        self.setWindowTitle("Image Annotation Tool")
+        self.setWindowTitle("LabelMV")
         self.setFixedSize(*map(int, resolution.split('x')))
         self.bbox_list_widget = QListWidget() #! list widget
         self.bbox_list_widget.itemDoubleClicked.connect(self.handle_item_double_clicked)
-        self.bbox_list_widget.setFixedWidth(200)
+        self.bbox_list_widget.setFixedWidth(300)
 
         self.text_widget_for_obj = QTextEdit()  # New text widget
-        self.text_widget_for_obj.setPlaceholderText("Enter a object")
-        self.text_widget_for_obj.setFixedWidth(200)  # Set a fixed height
+        self.text_widget_for_obj.setPlaceholderText("Enter an object")
+        self.text_widget_for_obj.setFixedWidth(300)  # Set a fixed height
         self.text_widget_for_obj.setFixedHeight(25)
 
         self.text_widget_for_id = QTextEdit()  # New text widget
-        self.text_widget_for_id.setPlaceholderText("Enter a id")
-        self.text_widget_for_id.setFixedWidth(200)  # Set a fixed height
+        self.text_widget_for_id.setPlaceholderText("Enter an id")
+        self.text_widget_for_id.setFixedWidth(300)  # Set a fixed height
         self.text_widget_for_id.setFixedHeight(25)
 
         self.objwidget = QTextEdit()  # New text widget
@@ -75,25 +73,25 @@ class MainWindow(QMainWindow):
         # self.btn_browse.clicked.connect(self.browse_folder)
         self.btn_browse.setFixedWidth(100)
 
-        self.btn_next = QPushButton("Next Frame (d)")
+        self.btn_next = QPushButton("Next Frame")
         self.btn_next.clicked.connect(self.next_frame)
         self.btn_next.setFixedWidth(100)
         next_shorcut = QShortcut(QKeySequence('d'), self)
         next_shorcut.activated.connect(self.next_frame)
 
-        self.btn_prev = QPushButton("Previous Frame (a)")
+        self.btn_prev = QPushButton("Previous Frame")
         self.btn_prev.clicked.connect(self.previous_frame)
         self.btn_prev.setFixedWidth(100)
         prev_shorcut = QShortcut(QKeySequence('a'), self)
         prev_shorcut.activated.connect(self.previous_frame)
 
-        self.btn_next_view = QPushButton("Next View (w)")
+        self.btn_next_view = QPushButton("Next View")
         self.btn_next_view.clicked.connect(self.show_next_view)
         self.btn_next_view.setFixedWidth(100)
         next_view_shorcut = QShortcut(QKeySequence('w'), self)
         next_view_shorcut.activated.connect(self.show_next_view)
 
-        self.btn_prev_view = QPushButton("Prev View (s)")
+        self.btn_prev_view = QPushButton("Prev View")
         self.btn_prev_view.clicked.connect(self.show_prev_view)
         self.btn_prev_view.setFixedWidth(100)
         prev_view_shorcut = QShortcut(QKeySequence('s'), self)
@@ -142,7 +140,7 @@ class MainWindow(QMainWindow):
         # layout left side
         self.btn_edit_text = QPushButton("Update Box")  # Create the button
         self.btn_edit_text.clicked.connect(self.edit_text)  # Connect it to the function that will handle the button click
-        self.btn_edit_text.setFixedWidth(100)  # Set the button width
+        self.btn_edit_text.setFixedWidth(300)  # Set the button width
 
         self.image_label = ClickableImageLabel(self)
         self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
