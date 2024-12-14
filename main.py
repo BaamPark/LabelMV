@@ -12,14 +12,14 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut
-from adjust_video import VideoHandler
-from yolo import run_yolo
-from logger_config import logger
+from tools.adjust_video import VideoHandler
+from tools.yolo import run_yolo
+from tools.logger_config import logger
 import pickle
 import numpy as np
-from reID_inference import compute_homography_distance, hungarian_algorithm
+from reid.reID_inference import compute_homography_distance, hungarian_algorithm
 from utils import xyhw_to_xyxy, capture_bbox, extract_bbox_from_label, extract_id_from_label, extract_object_from_label, convert_org_ltwh, ltwh_to_xyxy, convert_source_to_pixmap_coordinate, split_label_string
-from homography.homography_wz import get_homography_associator_object
+from reid.homography_wz import get_homography_associator_object
 import traceback
 
 class MainWindow(QMainWindow):

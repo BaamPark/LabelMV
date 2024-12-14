@@ -1,7 +1,7 @@
 from PyQt5.QtCore import Qt, QRect, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor
 from PyQt5.QtWidgets import QLabel
-from logger_config import logger
+from tools.logger_config import logger
 
 class ClickableImageLabel(QLabel):
     def __init__(self, parent):

@@ -4,7 +4,7 @@
 # Location #2: The wheel of the white table near the door and beside the wall. Closer to providers. Farther from the black line on the ground.
 # Location #3: Tiny table with a black panel behind Aaron. The foot closer the the door. 
 # Location #4: Connet Dynan's left foot and location #2. It cross with the brown circle on the ground.
-from logger_config import logger
+from tools.logger_config import logger
 import cv2
 import numpy as np
 import os
