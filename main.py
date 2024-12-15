@@ -122,7 +122,7 @@ class MainWindow(QMainWindow):
         self.btn_add_label.clicked.connect(self.add_label)
         self.btn_add_label.setFixedWidth(100)
         add_label_shortcut = QShortcut(QKeySequence('e'), self)
-        add_label_shortcut.activated.connect(self.add_label)
+        add_label_shortcut.activated.connect(self.btn_add_label.toggle)
 
         self.btn_export_label = QPushButton("Export Labels")
         self.btn_export_label.clicked.connect(lambda: self.export_labels(True)) #creates a new function that calls self.export_labels(True) whenever it's called.
@@ -740,12 +740,11 @@ class MainWindow(QMainWindow):
 
 
     def add_label(self):
-        self.btn_add_label.setChecked(True)
-        self.image_label.drawing = True
-        # if self.btn_add_label.isChecked():
-        #     self.image_label.drawing = True
-        # else:
-        #     self.image_label.drawing = False
+        logger.info(f"<==add_label function is called==>")
+        if self.btn_add_label.isChecked():
+            self.image_label.drawing = True
+        else:
+            self.image_label.drawing = False
 
     @staticmethod
     def is_convertible_to_int(string):
