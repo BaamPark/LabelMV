@@ -8,11 +8,11 @@ import subprocess
 class LauncherWindow(QMainWindow):
     def __init__(self, parent=None):
         super(LauncherWindow, self).__init__(parent)
-        self.setWindowTitle("Launcher UI")
+        self.setWindowTitle("LabelMV Launcher")
         self.setGeometry(100, 100, 400, 300)
 
         # Number input section
-        self.label_number = QLabel("Set Number:", self)
+        self.label_number = QLabel("Set Number of camera views:", self)
         self.label_number.setAlignment(Qt.AlignCenter)
         self.number_input = QLineEdit(self)
         self.number_input.setPlaceholderText("Enter a number")

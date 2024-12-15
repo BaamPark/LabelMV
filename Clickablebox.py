@@ -20,6 +20,8 @@ class ClickableImageLabel(QLabel):
 
 
     def mousePressEvent(self, event):
+        logger.info(f"<==mouse press event function called==>")
+        logger.info(f"rectangle list: {self.rectangles}")
         if event.button() == Qt.LeftButton:
             self.active_corner = None
             break_outer_loop = False 
@@ -40,8 +42,7 @@ class ClickableImageLabel(QLabel):
                         self.active_corner = j
                         resizing_condition = True
 
-                    
-                    elif (corner - event.pos()).manhattanLength() >= 10 and QRect(top_left, bottom_right).contains(event.pos()):
+                    elif (corner - event.pos()).manhattanLength() >= 10 and QRect(top_left, bottom_right).contains(event.pos()) and not self.parent.btn_add_label.isChecked():
                         logger.info('trying to relocate bounding box')
                         self.selected_rectangle_index = i
                         relocating_condition = True
@@ -61,17 +62,31 @@ class ClickableImageLabel(QLabel):
 
             #for else statement: The “else” block only executes when there is no break in the loop.
             else:
-                if self.parent.btn_add_label.isChecked() and self.active_corner is None:
+                logger.info('no bounding box selected')
+                if self.parent.btn_add_label.isChecked():
                     logger.info('trying to draw bounding box')
                     self.start_pos = event.pos()
                     self.end_pos = event.pos()  # Also initialize end_pos here
                     self.drawing = True
+                    self.selected_rectangle_index = None
+                    self.active_corner = None
+
+                else:
+                    logger.info('invalid mouse event')
+                    self.start_pos = None
+                    self.end_pos = None 
+                    self.active_corner = None
+                    self.selected_rectangle_index = None
 
             self.last_pos = event.pos()
 
 
     def mouseMoveEvent(self, event):
-        if self.drawing:
+        logger.info(f"<==mouse move event function called==>")
+        logger.info(f"active corner: {self.active_corner}")
+        logger.info(f"drawing: {self.drawing}")
+        if self.drawing and self.active_corner is None:
+            logger.info(f"drawing is on and active corner is None")
             self.end_pos = event.pos()
 
         #resize mode
@@ -93,6 +108,8 @@ class ClickableImageLabel(QLabel):
             if self.selected_rectangle_index is None:
                 return
             offset = event.pos() - self.last_pos
+            logger.info(f"rectangle list: {self.rectangles}")
+            logger.info(f"selected rectangle index: {self.selected_rectangle_index}")
             start, end = self.rectangles[self.selected_rectangle_index]['min_xy'], self.rectangles[self.selected_rectangle_index]['max_xy']
             self.rectangles[self.selected_rectangle_index]['min_xy'] = start + offset
             self.rectangles[self.selected_rectangle_index]['max_xy'] = end + offset
@@ -121,6 +138,9 @@ class ClickableImageLabel(QLabel):
             self.parent.bbox_list_widget.item(self.selected_rectangle_index).setText(new_item_text)
         
             logger.info(f"annotations: {self.parent.video_annotations} (mouseReleaseEvent)")
+
+        self.parent.btn_add_label.setChecked(False)
+
 
     def check_negative_box(self, rect):
         if rect['min_xy'].x() > rect['max_xy'].x() and rect['min_xy'].y() > rect['max_xy'].y():

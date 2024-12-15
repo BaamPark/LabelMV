@@ -121,6 +121,8 @@ class MainWindow(QMainWindow):
         self.btn_add_label.setCheckable(True) 
         self.btn_add_label.clicked.connect(self.add_label)
         self.btn_add_label.setFixedWidth(100)
+        add_label_shortcut = QShortcut(QKeySequence('e'), self)
+        add_label_shortcut.activated.connect(self.add_label)
 
         self.btn_export_label = QPushButton("Export Labels")
         self.btn_export_label.clicked.connect(lambda: self.export_labels(True)) #creates a new function that calls self.export_labels(True) whenever it's called.
@@ -459,6 +461,7 @@ class MainWindow(QMainWindow):
         logger.info(f"<==browse_video function is called==>")
         self.video_path_for_views = []
         video_frame_sequences_for_views = []
+        self.video_handler_objects = []
         try:
             for i in range(self.number_of_views):
                 self.video_path_for_views.append(QFileDialog.getOpenFileName(self, f'Open view {i} Video', '/home')[0])
@@ -737,10 +740,12 @@ class MainWindow(QMainWindow):
 
 
     def add_label(self):
-        if self.btn_add_label.isChecked():
-            self.image_label.drawing = True
-        else:
-            self.image_label.drawing = False
+        self.btn_add_label.setChecked(True)
+        self.image_label.drawing = True
+        # if self.btn_add_label.isChecked():
+        #     self.image_label.drawing = True
+        # else:
+        #     self.image_label.drawing = False
 
     @staticmethod
     def is_convertible_to_int(string):
