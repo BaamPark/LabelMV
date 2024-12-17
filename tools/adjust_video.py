@@ -42,10 +42,3 @@ class VideoHandler:
 
     def release(self):
         self.video_cap.release()
-
-if __name__ == '__main__':
-    video_path = 'samples_vid\VP-view1.mp4'
-    video_handler = VideoHandler(video_path)
-    frame_indices = video_handler.get_frame_indices(1)
-    print(frame_indices)
-    #display 
