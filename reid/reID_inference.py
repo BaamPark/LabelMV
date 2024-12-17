@@ -45,23 +45,23 @@ def hungarian_algorithm(distance_matrix):
     return assignments
 
 
-if __name__ == "__main__":
-    # Mock bounding box lists for testing
-    bbox_list_from_view1 = [
-        [1192, 328, 7, 7],  # [left, top, bottom, right]
-        [363, 671, 8, 4],
-        [218, 277, 6, 1],
-        [1404, 935, 6, 4]
-    ]
-    bbox_list_from_view2 = [
-        [827, 449, 2, 0],
-        [1307, 341, 2, 4],
-        [1492, 465, 1, 1],
-        [689, 293, 2, 0]
-    ]
+# if __name__ == "__main__":
+#     # Mock bounding box lists for testing
+#     bbox_list_from_view1 = [
+#         [1192, 328, 7, 7],  # [left, top, bottom, right]
+#         [363, 671, 8, 4],
+#         [218, 277, 6, 1],
+#         [1404, 935, 6, 4]
+#     ]
+#     bbox_list_from_view2 = [
+#         [827, 449, 2, 0],
+#         [1307, 341, 2, 4],
+#         [1492, 465, 1, 1],
+#         [689, 293, 2, 0]
+#     ]
 
-    distance_matrix = compute_homography_distance(bbox_list_from_view1, bbox_list_from_view2)
-    print("Distance Matrix:")
-    print(distance_matrix)
-    assignments = hungarian_algorithm(distance_matrix)
-    print(f"Assignments:{assignments}")
+#     distance_matrix = compute_homography_distance(bbox_list_from_view1, bbox_list_from_view2)
+#     print("Distance Matrix:")
+#     print(distance_matrix)
+#     assignments = hungarian_algorithm(distance_matrix)
+#     print(f"Assignments:{assignments}")
