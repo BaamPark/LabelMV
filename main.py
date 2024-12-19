@@ -335,6 +335,7 @@ class MainWindow(QMainWindow):
 
     def export_labels(self, btn=False, sequence_change=False):
         logger.info(f"<==export_labels function is called==>")
+        self.video_annotations[self.current_view][self.video_frame_sequences[self.current_frame_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         if btn:
             options = QFileDialog.Options()
             options |= QFileDialog.DontUseNativeDialog

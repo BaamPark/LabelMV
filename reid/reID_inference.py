@@ -21,7 +21,7 @@ def compute_homography_distance(bbox_list_from_view0: list, bbox_list_from_view1
     if len(bbox_list_from_view0) != len(bbox_list_from_view1):
         raise ValueError("bbox_list_from_view1 and bbox_list_from_view2 should have the same length.")
     
-    homography = pickle.load(open('homography\homography_matrix.pkl', 'rb'))
+    homography = pickle.load(open('homography/homography_matrix.pkl', 'rb'))
     new_bbox_list_from_view0 = [
         get_center_bottom(bbox_from_view0, homography, apply_homography=True)
         for bbox_from_view0 in bbox_list_from_view0
