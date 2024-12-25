@@ -307,7 +307,16 @@ class MainWindow(QMainWindow):
     
     def highlight_bbox(self, label):
         try:
-            bbox, id, obj, attr = split_label_string(label)
+            bbox, obj, id, attr= split_label_string(label)
+            gown, mask, eyewear, gloveL, gloveR = attr.split('-')
+            self.text_widget_for_obj.setText(obj)
+            self.text_widget_for_id.setText(id)
+            self.gown_dropdown.setCurrentIndex(self.gown_dropdown.findText(gown))
+            self.mask_dropdown.setCurrentIndex(self.mask_dropdown.findText(mask))
+            self.eyewear_dropdown.setCurrentIndex(self.eyewear_dropdown.findText(eyewear))
+            self.GloveL_dropdown.setCurrentIndex(self.GloveL_dropdown.findText(gloveL))
+            self.GloveR_dropdown.setCurrentIndex(self.GloveR_dropdown.findText(gloveR))
+
             left, top, width, height = map(int, bbox)
             vertices = [left, top, width, height]
             vertices = xyhw_to_xyxy(vertices)
