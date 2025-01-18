@@ -89,26 +89,26 @@ def calculate_scale_and_offset(pixmap, image_label):
 
 
 def convert_source_to_pixmap_coordinate(x, y, w, h, pixmap, image_label):
-    x, y, w, h = map(int, (x, y, w, h))
+    # Keep x, y, w, h as floats to avoid premature rounding
     scale_x, scale_y, vertical_offset = calculate_scale_and_offset(pixmap, image_label)
     
-    x = int(x * scale_x)
-    y = int((y * scale_y) + vertical_offset)
-    w = int(w * scale_x)
-    h = int(h * scale_y)
+    x = x * scale_x
+    y = (y * scale_y) + vertical_offset
+    w = w * scale_x
+    h = h * scale_y
 
-    return [x, y, w, h]
+    return [round(x), round(y), round(w), round(h)] 
 
 def convert_pixmap_to_source_coordinate(x, y, w, h, pixmap, image_label):
     x, y, w, h = map(int, (x, y, w, h))
     scale_x, scale_y, vertical_offset = calculate_scale_and_offset(pixmap, image_label)
     
-    x = int(x / scale_x)
-    y = int((y - vertical_offset) / scale_y)
-    w = int(w / scale_x)
-    h = int(h / scale_y)
+    x = x / scale_x
+    y = (y - vertical_offset) / scale_y
+    w = w / scale_x
+    h = h / scale_y
     
-    return [x, y, w, h]
+    return [round(x), round(y), round(w), round(h)]
 
 
 def convert_org_ltwh(bbox0, bbox1, bbox2, bbox3, reverse=False, pixmap=None, image_label=None):
