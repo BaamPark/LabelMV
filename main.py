@@ -144,6 +144,10 @@ class MainWindow(QMainWindow):
         self.btn_edit_text.clicked.connect(self.edit_text)  # Connect it to the function that will handle the button click
         self.btn_edit_text.setFixedWidth(300)  # Set the button width
 
+        self.btn_load_prev_attr = QPushButton("Load Pre-attribute")  # Create the button
+        self.btn_load_prev_attr.clicked.connect(self.load_prev_attr)  # Connect it to the function that will handle the button click
+        self.btn_load_prev_attr.setFixedWidth(300)  # Set the button width
+
         self.image_label = ClickableImageLabel(self)
         self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image_label.setPixmap(QPixmap(''))
@@ -262,6 +266,7 @@ class MainWindow(QMainWindow):
         text_list_layout.addLayout(GloveL_layout)
         text_list_layout.addLayout(GloveR_layout)
         text_list_layout.addWidget(self.btn_edit_text)
+        text_list_layout.addWidget(self.btn_load_prev_attr)
         text_list_layout.addWidget(self.bbox_list_widget)
         # text_list_layout.addWidget(self.image_list_widget)
         
@@ -849,6 +854,36 @@ class MainWindow(QMainWindow):
             msg.setIcon(QMessageBox.Warning)
             msg.setText(f"Error:\n{str(e)}\n\nDetails:\n{error_details}")
             msg.setWindowTitle("Warning: update box")
+            msg.exec_()
+
+
+    def load_prev_attr(self):
+        current_item = self.bbox_list_widget.currentItem()   
+
+        try:
+            if current_item is not None:
+                current_text = current_item.text()
+                curr_bbox, curr_obj, curr_id, _ = split_label_string(current_text)
+
+                logger.info(f"<==load_attr_labels function is called==>")
+                prev_sequence = self.video_frame_sequences[self.current_frame_index -1]
+                if prev_sequence in self.video_annotations[self.current_view]:
+                    # self.bbox_list_widget.clear()
+                    for label in self.video_annotations[self.current_view][prev_sequence]:
+                        # self.bbox_list_widget.addItem(label)
+                        _, _, prev_id, prev_attr = split_label_string(label)
+                        if prev_id == curr_id:
+                            current_item.setText(f'({curr_bbox[0]}, {curr_bbox[1]}, {curr_bbox[2]}, {curr_bbox[3]}), {curr_obj}, {curr_id}, {prev_attr}')
+                        # self.image_label.rectangles.append(rect)
+                    # self.image_label.update()
+
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.info(f"Exception: {error_details}")
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Error: \n{str(e)}\n\nDetails: {error_details}")
+            msg.setWindowTitle("Warning: load preattr")
             msg.exec_()
 
 
